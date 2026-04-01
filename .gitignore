@@ -1,0 +1,5 @@
+datos_anteriores.json
+registro_cambios.json
+*.xlsx
+__pycache__/
+*.pyc

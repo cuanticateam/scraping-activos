@@ -1,0 +1,63 @@
+name: Scraping Activos Colombia
+
+on:
+  schedule:
+    # Corre a las 11am y 6pm hora Colombia (UTC-5)
+    - cron: '0 16 * * *'   # 11:00 AM Colombia
+    - cron: '0 23 * * *'   # 6:00 PM Colombia
+  workflow_dispatch:         # Boton manual desde GitHub
+
+jobs:
+  scraping:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout codigo
+        uses: actions/checkout@v4
+
+      - name: Instalar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Instalar dependencias
+        run: pip install openpyxl
+
+      - name: Descargar datos anteriores
+        continue-on-error: true
+        run: |
+          if [ -f datos_anteriores.json ]; then
+            echo "Datos anteriores encontrados"
+          else
+            echo "{}" > datos_anteriores.json
+          fi
+          if [ -f registro_cambios.json ]; then
+            echo "Registro de cambios encontrado"
+          else
+            echo "{}" > registro_cambios.json
+          fi
+
+      - name: Ejecutar scraping
+        env:
+          EMAIL_REMITENTE: ${{ secrets.EMAIL_REMITENTE }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          EMAIL_DESTINATARIO: ${{ secrets.EMAIL_DESTINATARIO }}
+        run: python scraping_cloud.py
+
+      - name: Guardar datos para proxima ejecucion
+        uses: actions/upload-artifact@v4
+        with:
+          name: datos-scraping
+          path: |
+            datos_anteriores.json
+            registro_cambios.json
+            inmuebles_medellin.xlsx
+          retention-days: 90
+
+      - name: Commit datos actualizados
+        run: |
+          git config user.name "Scraping Bot"
+          git config user.email "bot@scraping.local"
+          git add -f datos_anteriores.json registro_cambios.json
+          git diff --staged --quiet || git commit -m "Actualizar datos $(date +%Y-%m-%d_%H:%M)"
+          git push || echo "No se pudo hacer push"
