@@ -279,11 +279,24 @@ def detectar_cambios(inmuebles_nuevos, pestaña):
 
     resumen = []
 
+    ids_actuales = set()
+
     for item in inmuebles_nuevos:
         pid = str(item.get("_id", ""))
         clave_base = f"{pestaña}:{pid}"
+        ids_actuales.add(clave_base)
         prev = anteriores.get(clave_base, {})
 
+        # Inmueble NUEVO
+        if not prev:
+            resumen.append(
+                f"NUEVO [{pestaña.upper()}] {item.get('nombre','?')} - "
+                f"{item.get('tipo','')} - {item.get('valor','')}"
+            )
+            for campo in CAMPOS_COMPARAR:
+                registro[f"{clave_base}:{campo}"] = ahora
+
+        # Cambios en campos
         for campo in CAMPOS_COMPARAR:
             val_nuevo = str(item.get(campo, ""))
             val_viejo = str(prev.get(campo, ""))
@@ -292,7 +305,7 @@ def detectar_cambios(inmuebles_nuevos, pestaña):
                 clave = f"{clave_base}:{campo}"
                 registro[clave] = ahora
                 resumen.append(
-                    f"[{pestaña}] {item.get('nombre','?')}: "
+                    f"CAMBIO [{pestaña.upper()}] {item.get('nombre','?')}: "
                     f"{campo} cambio de '{val_viejo}' a '{val_nuevo}'"
                 )
 
@@ -300,12 +313,13 @@ def detectar_cambios(inmuebles_nuevos, pestaña):
         datos_item = {c: str(item.get(c,"")) for c in CAMPOS_COMPARAR}
         anteriores[clave_base] = datos_item
 
-    # Detectar inmuebles NUEVOS (no existian antes)
-    ids_nuevos = {f"{pestaña}:{item.get('_id','')}" for item in inmuebles_nuevos}
+    # Detectar inmuebles ELIMINADOS
     for clave_vieja in list(anteriores.keys()):
-        if clave_vieja.startswith(f"{pestaña}:") and clave_vieja not in ids_nuevos:
+        if clave_vieja.startswith(f"{pestaña}:") and clave_vieja not in ids_actuales:
             nombre_viejo = anteriores[clave_vieja].get("nombre", "?")
-            resumen.append(f"[{pestaña}] ELIMINADO: {nombre_viejo}")
+            tipo_viejo = anteriores[clave_vieja].get("tipo", "")
+            resumen.append(f"ELIMINADO [{pestaña.upper()}] {nombre_viejo} - {tipo_viejo}")
+            del anteriores[clave_vieja]
 
     # Limpiar cambios viejos (> DIAS_ROJO)
     for k in list(registro.keys()):
@@ -333,11 +347,36 @@ def enviar_email(resumen_cambios):
         return
 
     try:
-        asunto = f"Activos por Colombia - {len(resumen_cambios)} cambios detectados"
-        cuerpo = "Se detectaron los siguientes cambios:\n\n"
-        cuerpo += "\n".join(f"  - {c}" for c in resumen_cambios)
-        cuerpo += f"\n\nFecha: {datetime.now().strftime('%Y-%m-%d %H:%M')}"
-        cuerpo += "\nRevisa el archivo en Google Drive: inmuebles_medellin.xlsx"
+        nuevos = [c for c in resumen_cambios if c.startswith("NUEVO")]
+        eliminados = [c for c in resumen_cambios if c.startswith("ELIMINADO")]
+        cambios = [c for c in resumen_cambios if c.startswith("CAMBIO")]
+
+        cuerpo = f"ALERTA - Activos por Colombia\n"
+        cuerpo += f"Fecha: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n"
+        cuerpo += f"{'='*50}\n\n"
+
+        if nuevos:
+            cuerpo += f"INMUEBLES NUEVOS ({len(nuevos)}):\n"
+            for c in nuevos: cuerpo += f"  + {c}\n"
+            cuerpo += "\n"
+        if eliminados:
+            cuerpo += f"INMUEBLES ELIMINADOS ({len(eliminados)}):\n"
+            for c in eliminados: cuerpo += f"  - {c}\n"
+            cuerpo += "\n"
+        if cambios:
+            cuerpo += f"DATOS QUE CAMBIARON ({len(cambios)}):\n"
+            for c in cambios[:40]: cuerpo += f"  * {c}\n"
+            if len(cambios) > 40: cuerpo += f"  ... y {len(cambios)-40} mas\n"
+            cuerpo += "\n"
+
+        cuerpo += f"{'='*50}\n"
+        cuerpo += "Tabla actualizada en Google Drive: inmuebles_medellin.xlsx\n"
+
+        partes = []
+        if nuevos: partes.append(f"{len(nuevos)} nuevos")
+        if eliminados: partes.append(f"{len(eliminados)} eliminados")
+        if cambios: partes.append(f"{len(cambios)} cambios")
+        asunto = f"Activos Colombia - {', '.join(partes)}"
 
         msg = MIMEMultipart()
         msg["From"]    = EMAIL_REMITENTE

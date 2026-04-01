@@ -29,43 +29,33 @@ jobs:
           python-version: '3.12'
 
       - name: Instalar dependencias
-        run: pip install openpyxl
-
-      - name: Descargar datos anteriores
-        continue-on-error: true
         run: |
-          if [ -f datos_anteriores.json ]; then
-            echo "Datos anteriores encontrados"
-          else
-            echo "{}" > datos_anteriores.json
-          fi
-          if [ -f registro_cambios.json ]; then
-            echo "Registro de cambios encontrado"
-          else
-            echo "{}" > registro_cambios.json
-          fi
+          pip install openpyxl playwright
+          playwright install chromium --with-deps
 
-      - name: Ejecutar scraping
+      - name: Preparar datos anteriores
+        run: |
+          [ -f datos_anteriores.json ] || echo "{}" > datos_anteriores.json
+          [ -f registro_cambios.json ] || echo "{}" > registro_cambios.json
+
+      - name: Ejecutar scraping completo
         env:
           EMAIL_REMITENTE: ${{ secrets.EMAIL_REMITENTE }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           EMAIL_DESTINATARIO: ${{ secrets.EMAIL_DESTINATARIO }}
         run: python scraping_cloud.py
 
-      - name: Guardar datos para proxima ejecucion
+      - name: Guardar Excel como artefacto
         uses: actions/upload-artifact@v4
         with:
-          name: datos-scraping
-          path: |
-            datos_anteriores.json
-            registro_cambios.json
-            inmuebles_medellin.xlsx
+          name: inmuebles-medellin
+          path: inmuebles_medellin.xlsx
           retention-days: 90
 
       - name: Commit datos actualizados
         run: |
           git config user.name "Scraping Bot"
           git config user.email "bot@scraping.local"
-          git add -f datos_anteriores.json registro_cambios.json
+          git add -f datos_anteriores.json registro_cambios.json inmuebles_medellin.xlsx
           git diff --staged --quiet || git commit -m "Actualizar datos $(date +%Y-%m-%d_%H:%M)"
           git push || echo "No se pudo hacer push"

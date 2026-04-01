@@ -1,24 +1,30 @@
 # -*- coding: utf-8 -*-
 """
 Version NUBE del scraping - corre en GitHub Actions.
-Solo usa la API (sin Playwright) para ser rapido y ligero.
-Los datos de cronograma se obtienen del estado de la API.
+Usa Playwright para datos completos (nombre edificio, direccion, cronograma).
+Detecta cambios, inmuebles nuevos/eliminados y envia alerta por email.
 """
 
 import urllib.request, urllib.parse, json, re, os, smtplib, time
+import openpyxl, openpyxl.styles, openpyxl.utils
 from datetime import datetime, timedelta
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from playwright.sync_api import sync_playwright
 
 API_BASE   = "https://dev.activosporcolombia.com/net/api"
 SITE_BASE  = "https://activosporcolombia.com"
-CITY_ID_MEDELLIN  = 5001
+CITY_ID_MEDELLIN = 5001
 DIAS_ROJO  = 2
 
-# Credenciales desde variables de entorno (GitHub Secrets)
 EMAIL_REMITENTE    = os.environ.get("EMAIL_REMITENTE", "")
 EMAIL_CONTRASENA   = os.environ.get("GMAIL_APP_PASSWORD", "")
 EMAIL_DESTINATARIO = os.environ.get("EMAIL_DESTINATARIO", "")
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+DATOS_FILE   = os.path.join(SCRIPT_DIR, "datos_anteriores.json")
+CAMBIOS_FILE = os.path.join(SCRIPT_DIR, "registro_cambios.json")
+EXCEL_FILE   = os.path.join(SCRIPT_DIR, "inmuebles_medellin.xlsx")
 
 TIPOS = {
     1:"Apartaestudio",2:"Apartamento",3:"Bodega",4:"Casa",5:"Casa Lote",
@@ -27,8 +33,14 @@ TIPOS = {
     24:"Lote con Construccion",29:"Oficina",30:"Parqueadero",
 }
 
-BARRIOS = {}  # se carga desde la API de filtros
+COLOR_HEADER="1F3864"; COLOR_CRONO="D6E4F0"; COLOR_MANIF="F2F2F2"
+COLOR_SUBASTA="FFF2CC"; COLOR_CAMBIO="FF4444"; COLOR_NUEVO="2E7D32"
+FONT_W="FFFFFF"
 
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 1. API
+# ═══════════════════════════════════════════════════════════════════════════════
 
 def llamar_api(endpoint, params=None, reintentos=3):
     url = f"{API_BASE}{endpoint}"
@@ -40,23 +52,8 @@ def llamar_api(endpoint, params=None, reintentos=3):
             with urllib.request.urlopen(req, timeout=30) as r:
                 return json.loads(r.read().decode("utf-8"))
         except Exception:
-            if intento < reintentos - 1:
-                time.sleep(3)
-            else:
-                raise
-
-
-def cargar_barrios():
-    """Carga mapa de neighborhood_id -> nombre desde la API de filtros."""
-    global BARRIOS
-    try:
-        resp = llamar_api("/public/v1/inmuebles/filtros")
-        for dept in resp["data"]["ubicacion"]["departamentos"]:
-            for city in dept.get("cities", []):
-                for barrio in city.get("neighborhoods", []):
-                    BARRIOS[barrio["id"]] = barrio["nombre"]
-    except Exception:
-        pass
+            if intento < reintentos - 1: time.sleep(3)
+            else: raise
 
 
 def obtener_propiedades(filtro):
@@ -74,6 +71,10 @@ def obtener_propiedades(filtro):
     return todos
 
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# 2. PLAYWRIGHT — detalle completo de cada propiedad
+# ═══════════════════════════════════════════════════════════════════════════════
+
 def construir_url(p):
     itype = (p.get("item_type") or "").upper()
     pid = p["id"]
@@ -84,55 +85,140 @@ def construir_url(p):
     return f"{SITE_BASE}/es/inmueble/{pid}/{slug}"
 
 
+def scrape_detalles(propiedades, etiqueta=""):
+    resultados = {}
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_context(
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36"
+        ).new_page()
+
+        total = len(propiedades)
+        for i, prop in enumerate(propiedades, 1):
+            pid = str(prop["id"])
+            url = construir_url(prop)
+            ref = (prop.get("reference") or "")[:50]
+            print(f"  {etiqueta}[{i}/{total}] {ref}")
+
+            try:
+                page.goto(url, wait_until="domcontentloaded", timeout=25000)
+                page.wait_for_timeout(3000)
+                lineas = [l.strip() for l in page.inner_text("body").split("\n") if l.strip()]
+            except Exception:
+                lineas = []
+
+            direccion, barrio = "", ""
+            for l in lineas:
+                if l.startswith("Direcci"):
+                    direccion = l.split(":", 1)[-1].strip()
+                if l.startswith("Barrio:"):
+                    barrio = l.split(":", 1)[-1].strip()
+
+            nombre = extraer_nombre_edificio(lineas, barrio)
+            estado_crono, etapa_actual, plazo = extraer_cronograma(lineas)
+
+            resultados[pid] = {
+                "nombre": nombre, "direccion": direccion, "barrio": barrio,
+                "estado_crono": estado_crono, "etapa_actual": etapa_actual, "plazo": plazo,
+            }
+
+        browser.close()
+    return resultados
+
+
+def extraer_nombre_edificio(lineas, barrio_fallback):
+    texto = " ".join(lineas)
+    patrones = [
+        r"(?:Edificio|Ed\.)\s+([A-Z\u00C0-\u00DC][A-Za-z\u00C0-\u00FC\u00F1\u00D1\s]+?)(?:\s*,|\s*\.|ubicad|situad)",
+        r"(?:Conjunto Residencial|Conj\.)\s+([A-Z\u00C0-\u00DC][A-Za-z\u00C0-\u00FC\u00F1\u00D1\s]+?)(?:\s*,|\s*\.|ubicad|situad)",
+        r"(?:Centro Comercial|CC)\s+([A-Z\u00C0-\u00DC][A-Za-z\u00C0-\u00FC\u00F1\u00D1\s]+?)(?:\s*,|\s*\.|ubicad|situad)",
+        r"(?:Parque Empresarial|Torre|Local)\s+([A-Z\u00C0-\u00DC][A-Za-z\u00C0-\u00FC\u00F1\u00D1\s]+?)(?:\s*,|\s*\.|ubicad|situad)",
+    ]
+    for pat in patrones:
+        m = re.search(pat, texto)
+        if m:
+            nombre = m.group(1).strip()
+            if 3 < len(nombre) < 50:
+                return nombre
+    return barrio_fallback or "Sin nombre"
+
+
+def extraer_cronograma(lineas):
+    ETAPAS = ["PUBLICACI","REGISTRO","DILIGENCIA","FINANCIERO",
+              "CUPONES","SERIEDAD","VALIDACI","SUBASTA"]
+
+    for l in lineas:
+        if "manifestaci" in l.lower() and "abierta" in l.lower():
+            return "Manifestacion Abierta", "", "X"
+
+    if not any("ronograma" in l for l in lineas):
+        return "Manifestacion Abierta", "", "X"
+
+    etapa_activa = ""
+    for i, l in enumerate(lineas):
+        lu = l.upper()
+        if any(e in lu for e in ETAPAS):
+            contexto = " ".join(lineas[max(0,i-2):i+6]).upper()
+            if "ACTIVO" in contexto:
+                etapa_activa = l.strip()
+                break
+
+    plazo = "X"
+    for l in lineas:
+        m = re.search(r"Fin:\s*\w+,\s*(\d+)\s+de\s+(\w+)\s+de\s+(\d{4})", l)
+        if m:
+            dia = m.group(1).zfill(2)
+            meses = {"enero":"01","febrero":"02","marzo":"03","abril":"04","mayo":"05",
+                     "junio":"06","julio":"07","agosto":"08","septiembre":"09",
+                     "octubre":"10","noviembre":"11","diciembre":"12"}
+            mes = meses.get(m.group(2).lower(), "??")
+            plazo = f"{dia}/{mes}"
+            break
+
+    if etapa_activa or plazo != "X":
+        return "Con cronograma", etapa_activa, plazo
+    return "Manifestacion Abierta", "", "X"
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 3. PROCESAR — combinar API + Playwright
+# ═══════════════════════════════════════════════════════════════════════════════
+
 def formatear_precio(v):
     if not v: return "X"
     try: return "$ {:,.0f}".format(float(v)).replace(",",".")
     except: return str(v)
 
 
-def procesar(props):
+def procesar(props_api, detalles):
     resultado = []
-    for p in props:
+    for p in props_api:
+        pid = str(p["id"])
+        det = detalles.get(pid, {})
         estado = p.get("state") or {}
         estado_cod = estado.get("code","") if isinstance(estado, dict) else ""
-        estado_nom = estado.get("name","") if isinstance(estado, dict) else str(estado)
-
-        barrio = BARRIOS.get(p.get("neighborhood_id"), "")
-        nombre = barrio or (p.get("reference") or "").split(" - ")[0].strip()
-
-        # Determinar cronograma desde estado de la API
-        if "PROXIMO" in estado_cod.upper() or "SUBASTA" in estado_cod.upper():
-            estado_crono = "Con cronograma"
-            etapa = estado_nom
-        elif "MANIFEST" in estado_cod.upper() or "ABIERTA" in estado_cod.upper():
-            estado_crono = "Manifestacion Abierta"
-            etapa = ""
-        else:
-            estado_crono = estado_nom or "Sin info"
-            etapa = ""
 
         resultado.append({
-            "_id": str(p["id"]),
-            "nombre": nombre,
-            "direccion": f"{barrio}, {p.get('location','')}" if barrio else p.get("location",""),
-            "tipo": TIPOS.get(p.get("property_type_id"), ""),
-            "area_m2": p.get("built_area") or p.get("lot_area") or "",
-            "valor": formatear_precio(p.get("base_sale_price") or p.get("commercial_appraisal")),
-            "estado_crono": estado_crono,
-            "etapa_actual": etapa,
-            "plazo": "X",
-            "estado_api": estado_cod,
-            "link": construir_url(p),
+            "_id": pid,
+            "nombre":       det.get("nombre") or det.get("barrio") or p.get("reference",""),
+            "direccion":    det.get("direccion",""),
+            "tipo":         TIPOS.get(p.get("property_type_id"), ""),
+            "area_m2":      p.get("built_area") or p.get("lot_area") or "",
+            "valor":        formatear_precio(p.get("base_sale_price") or p.get("commercial_appraisal")),
+            "estado_crono": det.get("estado_crono",""),
+            "etapa_actual": det.get("etapa_actual",""),
+            "plazo":        det.get("plazo","X"),
+            "estado_api":   estado_cod,
+            "link":         construir_url(p),
         })
     return resultado
 
 
-# ── Deteccion de cambios ──
+# ═══════════════════════════════════════════════════════════════════════════════
+# 4. DETECCION DE CAMBIOS + NUEVOS + ELIMINADOS
+# ═══════════════════════════════════════════════════════════════════════════════
 
 CAMPOS = ["nombre","direccion","tipo","valor","estado_crono","etapa_actual","plazo"]
-DATOS_FILE = os.path.join(os.path.dirname(__file__), "datos_anteriores.json")
-CAMBIOS_FILE = os.path.join(os.path.dirname(__file__), "registro_cambios.json")
-
 
 def cargar_json(path):
     if os.path.exists(path):
@@ -152,18 +238,43 @@ def detectar_cambios(inmuebles, tab):
     limite = (datetime.now() - timedelta(days=DIAS_ROJO)).isoformat()
     resumen = []
 
+    ids_actuales = set()
+
     for item in inmuebles:
         pid = item["_id"]
         base = f"{tab}:{pid}"
+        ids_actuales.add(base)
         prev = anteriores.get(base, {})
+
+        # Inmueble NUEVO
+        if not prev:
+            resumen.append(f"NUEVO [{tab.upper()}] {item.get('nombre','?')} - {item.get('tipo','')} - {item.get('valor','')}")
+            # Marcar todas las celdas como cambio para que salgan en rojo
+            for campo in CAMPOS:
+                registro[f"{base}:{campo}"] = ahora
+
+        # Cambios en campos
         for campo in CAMPOS:
             nuevo = str(item.get(campo,""))
             viejo = str(prev.get(campo,""))
             if prev and nuevo != viejo:
                 registro[f"{base}:{campo}"] = ahora
-                resumen.append(f"[{tab}] {item.get('nombre','?')}: {campo} '{viejo}' -> '{nuevo}'")
+                resumen.append(
+                    f"CAMBIO [{tab.upper()}] {item.get('nombre','?')}: "
+                    f"{campo} cambio de '{viejo}' a '{nuevo}'"
+                )
+
         anteriores[base] = {c: str(item.get(c,"")) for c in CAMPOS}
 
+    # Inmuebles ELIMINADOS
+    for clave in list(anteriores.keys()):
+        if clave.startswith(f"{tab}:") and clave not in ids_actuales:
+            nombre_viejo = anteriores[clave].get("nombre", "?")
+            tipo_viejo = anteriores[clave].get("tipo", "")
+            resumen.append(f"ELIMINADO [{tab.upper()}] {nombre_viejo} - {tipo_viejo}")
+            del anteriores[clave]
+
+    # Limpiar cambios viejos
     for k in list(registro.keys()):
         if registro[k] < limite:
             del registro[k]
@@ -173,105 +284,155 @@ def detectar_cambios(inmuebles, tab):
     return {k:True for k,v in registro.items() if v >= limite}, resumen
 
 
-# ── Excel ──
+# ═══════════════════════════════════════════════════════════════════════════════
+# 5. EXCEL
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def color_fila(ec, ea):
+    cod = (ea or "").upper()
+    if ec == "Manifestacion Abierta": return COLOR_MANIF
+    if "SUBASTA" in cod or "PROXIMO" in cod: return COLOR_SUBASTA
+    return COLOR_CRONO
+
+
+def escribir_pestaña(wb, titulo_hoja, titulo, items, cambios, tab):
+    ws = wb.create_sheet(titulo_hoja)
+    COLS=["NOMBRE","DIRECCION","TIPO","AREA m2","VALOR",
+          "ESTADO CRONOGRAMA","ETAPA ACTUAL","PLAZO","CLIENTE","LINK"]
+    CAMPOS_E=["nombre","direccion","tipo","area_m2","valor",
+              "estado_crono","etapa_actual","plazo","_c","link"]
+    ANCHOS=[30,38,18,10,20,22,35,10,14,55]
+    ALIN=["l","l","c","c","c","c","l","c","c","l"]
+    borde=openpyxl.styles.Border(
+        left=openpyxl.styles.Side("thin",color="CCCCCC"),
+        right=openpyxl.styles.Side("thin",color="CCCCCC"),
+        top=openpyxl.styles.Side("thin",color="CCCCCC"),
+        bottom=openpyxl.styles.Side("thin",color="CCCCCC"),
+    )
+
+    ws.merge_cells(start_row=1,start_column=1,end_row=1,end_column=len(COLS))
+    t=ws.cell(row=1,column=1,value=titulo)
+    t.font=openpyxl.styles.Font(name="Calibri",bold=True,size=14,color=FONT_W)
+    t.fill=openpyxl.styles.PatternFill("solid",fgColor=COLOR_HEADER)
+    t.alignment=openpyxl.styles.Alignment(horizontal="center",vertical="center")
+    ws.row_dimensions[1].height=28
+
+    for c,n in enumerate(COLS,1):
+        cl=ws.cell(row=2,column=c,value=n)
+        cl.fill=openpyxl.styles.PatternFill("solid",fgColor="2E5D9E")
+        cl.font=openpyxl.styles.Font(name="Calibri",bold=True,color=FONT_W,size=10)
+        cl.alignment=openpyxl.styles.Alignment(horizontal="center",vertical="center",wrap_text=True)
+        cl.border=borde
+    ws.row_dimensions[2].height=30
+
+    rojo_fill=openpyxl.styles.PatternFill("solid",fgColor=COLOR_CAMBIO)
+    rojo_font=openpyxl.styles.Font(name="Calibri",size=10,color="FFFFFF",bold=True)
+
+    for fila,item in enumerate(items,3):
+        pid=item["_id"]
+        cf=color_fila(item.get("estado_crono",""),item.get("estado_api",""))
+        base_fill=openpyxl.styles.PatternFill("solid",fgColor=cf)
+        base_font=openpyxl.styles.Font(name="Calibri",size=10)
+        for c,(campo,al) in enumerate(zip(CAMPOS_E,ALIN),1):
+            val="Grupo NBC" if campo=="_c" else item.get(campo,"")
+            cl=ws.cell(row=fila,column=c,value=val)
+            ck=f"{tab}:{pid}:{campo}"
+            if ck in cambios: cl.fill=rojo_fill; cl.font=rojo_font
+            else: cl.fill=base_fill; cl.font=base_font
+            cl.alignment=openpyxl.styles.Alignment(
+                horizontal="left" if al=="l" else "center",
+                vertical="center",wrap_text=(al=="l"))
+            cl.border=borde
+        ws.row_dimensions[fila].height=22
+
+    for c,w in enumerate(ANCHOS,1):
+        ws.column_dimensions[openpyxl.utils.get_column_letter(c)].width=w
+    ws.auto_filter.ref=f"A2:{openpyxl.utils.get_column_letter(len(COLS))}{len(items)+2}"
+    ws.freeze_panes="A3"
+
 
 def guardar_excel(med, ant, cambios_med, cambios_ant):
-    import openpyxl, openpyxl.styles, openpyxl.utils
-
-    COLOR_HEADER="1F3864"; COLOR_CRONO="D6E4F0"; COLOR_MANIF="F2F2F2"
-    COLOR_SUB="FFF2CC"; COLOR_CAMBIO="FF4444"; FONT_W="FFFFFF"
-
-    def color_fila(ec, ea):
-        cod = (ea or "").upper()
-        if ec == "Manifestacion Abierta": return COLOR_MANIF
-        if "SUBASTA" in cod or "PROXIMO" in cod: return COLOR_SUB
-        return COLOR_CRONO
-
-    def escribir(wb, titulo_hoja, titulo, items, cambios, tab):
-        ws = wb.create_sheet(titulo_hoja)
-        COLS=["NOMBRE","DIRECCION","TIPO","AREA m2","VALOR","ESTADO CRONOGRAMA","ETAPA ACTUAL","PLAZO","CLIENTE","LINK"]
-        CAMPOS_E=["nombre","direccion","tipo","area_m2","valor","estado_crono","etapa_actual","plazo","_c","link"]
-        ANCHOS=[30,38,18,10,20,22,35,10,14,55]
-        ALIN=["l","l","c","c","c","c","l","c","c","l"]
-        borde=openpyxl.styles.Border(*(openpyxl.styles.Side("thin",color="CCCCCC") for _ in range(4)))
-
-        ws.merge_cells(start_row=1,start_column=1,end_row=1,end_column=len(COLS))
-        t=ws.cell(row=1,column=1,value=titulo)
-        t.font=openpyxl.styles.Font(name="Calibri",bold=True,size=14,color=FONT_W)
-        t.fill=openpyxl.styles.PatternFill("solid",fgColor=COLOR_HEADER)
-        t.alignment=openpyxl.styles.Alignment(horizontal="center",vertical="center")
-        ws.row_dimensions[1].height=28
-
-        for c,n in enumerate(COLS,1):
-            cl=ws.cell(row=2,column=c,value=n)
-            cl.fill=openpyxl.styles.PatternFill("solid",fgColor="2E5D9E")
-            cl.font=openpyxl.styles.Font(name="Calibri",bold=True,color=FONT_W,size=10)
-            cl.alignment=openpyxl.styles.Alignment(horizontal="center",vertical="center",wrap_text=True)
-            cl.border=borde
-        ws.row_dimensions[2].height=30
-
-        rojo_fill=openpyxl.styles.PatternFill("solid",fgColor=COLOR_CAMBIO)
-        rojo_font=openpyxl.styles.Font(name="Calibri",size=10,color="FFFFFF",bold=True)
-
-        for fila,item in enumerate(items,3):
-            pid=item["_id"]
-            cf=color_fila(item.get("estado_crono",""),item.get("estado_api",""))
-            base_fill=openpyxl.styles.PatternFill("solid",fgColor=cf)
-            base_font=openpyxl.styles.Font(name="Calibri",size=10)
-            for c,(campo,al) in enumerate(zip(CAMPOS_E,ALIN),1):
-                val="Grupo NBC" if campo=="_c" else item.get(campo,"")
-                cl=ws.cell(row=fila,column=c,value=val)
-                ck=f"{tab}:{pid}:{campo}"
-                if ck in cambios: cl.fill=rojo_fill; cl.font=rojo_font
-                else: cl.fill=base_fill; cl.font=base_font
-                cl.alignment=openpyxl.styles.Alignment(horizontal="left" if al=="l" else "center",vertical="center",wrap_text=(al=="l"))
-                cl.border=borde
-            ws.row_dimensions[fila].height=22
-
-        for c,w in enumerate(ANCHOS,1):
-            ws.column_dimensions[openpyxl.utils.get_column_letter(c)].width=w
-        ws.auto_filter.ref=f"A2:{openpyxl.utils.get_column_letter(len(COLS))}{len(items)+2}"
-        ws.freeze_panes="A3"
-
     wb=openpyxl.Workbook()
     wb.remove(wb.active)
-    escribir(wb,"Medellin","LISTADO DE VENTA MASIVA - MEDELLIN",med,cambios_med,"med")
-    escribir(wb,"Antioquia","LISTADO DE VENTA MASIVA - ANTIOQUIA (sin Medellin)",ant,cambios_ant,"ant")
+    escribir_pestaña(wb,"Medellin","LISTADO DE VENTA MASIVA - MEDELLIN",med,cambios_med,"med")
+    escribir_pestaña(wb,"Antioquia","LISTADO DE VENTA MASIVA - ANTIOQUIA (sin Medellin)",ant,cambios_ant,"ant")
 
     wl=wb.create_sheet("Leyenda")
-    wl["A1"]="Leyenda de colores"; wl["A1"].font=openpyxl.styles.Font(bold=True)
-    for i,(d,co) in enumerate([("Proximo Subasta",COLOR_SUB),("En proceso",COLOR_CRONO),("Manifestacion Abierta",COLOR_MANIF),("DATO CAMBIO (rojo 2 dias)",COLOR_CAMBIO)],2):
-        c=wl.cell(row=i,column=1,value=d); c.fill=openpyxl.styles.PatternFill("solid",fgColor=co)
+    wl["A1"]="Leyenda de colores"; wl["A1"].font=openpyxl.styles.Font(bold=True,size=12)
+    leyenda=[
+        ("Proximo Subasta",COLOR_SUBASTA),
+        ("Con cronograma - En proceso",COLOR_CRONO),
+        ("Manifestacion Abierta",COLOR_MANIF),
+        ("DATO QUE CAMBIO (rojo 2 dias)",COLOR_CAMBIO),
+        ("INMUEBLE NUEVO (todo rojo)",COLOR_CAMBIO),
+    ]
+    for i,(d,co) in enumerate(leyenda,2):
+        c=wl.cell(row=i,column=1,value=d)
+        c.fill=openpyxl.styles.PatternFill("solid",fgColor=co)
         if co==COLOR_CAMBIO: c.font=openpyxl.styles.Font(color="FFFFFF",bold=True)
-    wl.column_dimensions["A"].width=40
+    wl.column_dimensions["A"].width=50
 
     wi=wb.create_sheet("Info")
-    wi["A1"]="Actualizacion"; wi["B1"]=datetime.now().strftime("%Y-%m-%d %H:%M")
-    wi["A2"]="Medellin"; wi["B2"]=len(med)
-    wi["A3"]="Antioquia"; wi["B3"]=len(ant)
+    wi["A1"]="Ultima actualizacion"; wi["B1"]=datetime.now().strftime("%Y-%m-%d %H:%M")
+    wi["A2"]="Medellin"; wi["B2"]=f"{len(med)} inmuebles"
+    wi["A3"]="Antioquia (sin Med.)"; wi["B3"]=f"{len(ant)} inmuebles"
+    wi["A4"]="Fuente"; wi["B4"]="activosporcolombia.com"
 
-    out = os.path.join(os.path.dirname(__file__), "inmuebles_medellin.xlsx")
-    wb.save(out)
-    return out
+    wb.save(EXCEL_FILE)
+    print(f"Excel guardado: {EXCEL_FILE}")
+    return EXCEL_FILE
 
 
-# ── Email ──
+# ═══════════════════════════════════════════════════════════════════════════════
+# 6. EMAIL
+# ═══════════════════════════════════════════════════════════════════════════════
 
 def enviar_email(resumen):
     if not EMAIL_REMITENTE or not EMAIL_CONTRASENA or not resumen:
         return
     try:
-        cuerpo = f"Se detectaron {len(resumen)} cambios:\n\n"
-        cuerpo += "\n".join(f"  - {c}" for c in resumen[:30])
-        if len(resumen)>30: cuerpo += f"\n  ... y {len(resumen)-30} mas"
-        cuerpo += f"\n\nFecha: {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+        # Separar por tipo
+        nuevos = [c for c in resumen if c.startswith("NUEVO")]
+        eliminados = [c for c in resumen if c.startswith("ELIMINADO")]
+        cambios = [c for c in resumen if c.startswith("CAMBIO")]
+
+        cuerpo = f"ALERTA - Activos por Colombia\n"
+        cuerpo += f"Fecha: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n"
+        cuerpo += f"{'='*50}\n\n"
+
+        if nuevos:
+            cuerpo += f"INMUEBLES NUEVOS ({len(nuevos)}):\n"
+            for c in nuevos: cuerpo += f"  + {c}\n"
+            cuerpo += "\n"
+
+        if eliminados:
+            cuerpo += f"INMUEBLES ELIMINADOS ({len(eliminados)}):\n"
+            for c in eliminados: cuerpo += f"  - {c}\n"
+            cuerpo += "\n"
+
+        if cambios:
+            cuerpo += f"DATOS QUE CAMBIARON ({len(cambios)}):\n"
+            for c in cambios[:40]: cuerpo += f"  * {c}\n"
+            if len(cambios) > 40: cuerpo += f"  ... y {len(cambios)-40} mas\n"
+            cuerpo += "\n"
+
+        cuerpo += f"{'='*50}\n"
+        cuerpo += "La tabla se actualizo automaticamente.\n"
+
+        # Asunto descriptivo
+        partes = []
+        if nuevos: partes.append(f"{len(nuevos)} nuevos")
+        if eliminados: partes.append(f"{len(eliminados)} eliminados")
+        if cambios: partes.append(f"{len(cambios)} cambios")
+        asunto = f"Activos Colombia - {', '.join(partes)}"
 
         msg = MIMEMultipart()
-        msg["From"]=EMAIL_REMITENTE; msg["To"]=EMAIL_DESTINATARIO
-        msg["Subject"]=f"Activos Colombia - {len(resumen)} cambios detectados"
-        msg.attach(MIMEText(cuerpo,"plain"))
+        msg["From"] = EMAIL_REMITENTE
+        msg["To"] = EMAIL_DESTINATARIO
+        msg["Subject"] = asunto
+        msg.attach(MIMEText(cuerpo, "plain"))
 
-        with smtplib.SMTP_SSL("smtp.gmail.com",465) as s:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as s:
             s.login(EMAIL_REMITENTE, EMAIL_CONTRASENA)
             s.send_message(msg)
         print(f"Email enviado a {EMAIL_DESTINATARIO}")
@@ -279,40 +440,55 @@ def enviar_email(resumen):
         print(f"Error email: {e}")
 
 
-# ── Main ──
+# ═══════════════════════════════════════════════════════════════════════════════
+# 7. MAIN
+# ═══════════════════════════════════════════════════════════════════════════════
 
 if __name__ == "__main__":
-    print("Scraping NUBE - activosporcolombia.com")
-    print("="*45)
+    print("="*55)
+    print("  Scraping NUBE - activosporcolombia.com")
+    print("  Medellin + Antioquia (datos completos)")
+    print("="*55)
 
-    cargar_barrios()
-
-    print("Descargando Medellin...")
+    # Descargar listas
+    print("\n[1/5] Descargando Medellin...")
     props_med = obtener_propiedades({"city_ids": CITY_ID_MEDELLIN})
     print(f"  {len(props_med)} propiedades")
 
-    print("Descargando Antioquia (sin Medellin)...")
+    print("\n[2/5] Descargando Antioquia (sin Medellin)...")
     todas = obtener_propiedades({})
     props_ant = [p for p in todas if p.get("city_id") and 5000<=p["city_id"]<=5999 and p["city_id"]!=CITY_ID_MEDELLIN]
     print(f"  {len(props_ant)} propiedades")
 
-    med = procesar(props_med)
-    ant = procesar(props_ant)
+    # Scrape detalles con Playwright
+    print("\n[3/5] Visitando paginas de Medellin...")
+    det_med = scrape_detalles(props_med, "MED ")
 
+    print("\n[4/5] Visitando paginas de Antioquia...")
+    det_ant = scrape_detalles(props_ant, "ANT ")
+
+    # Procesar
+    med = procesar(props_med, det_med)
+    ant = procesar(props_ant, det_ant)
+
+    # Detectar cambios
+    print("\n[5/5] Detectando cambios y generando Excel...")
     cm, rm = detectar_cambios(med, "med")
     ca, ra = detectar_cambios(ant, "ant")
-    cambios = rm + ra
+    todos_cambios = rm + ra
 
-    if cambios:
-        print(f"\n*** {len(cambios)} CAMBIOS ***")
-        for c in cambios[:10]: print(f"  - {c}")
+    if todos_cambios:
+        print(f"\n  *** {len(todos_cambios)} ALERTAS ***")
+        for c in todos_cambios[:15]: print(f"    {c}")
+        if len(todos_cambios) > 15: print(f"    ... y {len(todos_cambios)-15} mas")
     else:
-        print("Sin cambios")
+        print("  Sin cambios")
 
-    archivo = guardar_excel(med, ant, cm, ca)
-    print(f"Excel: {archivo}")
+    # Excel
+    guardar_excel(med, ant, cm, ca)
 
-    if cambios:
-        enviar_email(cambios)
+    # Email
+    if todos_cambios:
+        enviar_email(todos_cambios)
 
     print(f"\nListo: {len(med)} Medellin + {len(ant)} Antioquia")
