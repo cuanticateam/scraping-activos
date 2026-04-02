@@ -30,7 +30,7 @@ jobs:
 
       - name: Instalar dependencias
         run: |
-          pip install openpyxl playwright
+          pip install openpyxl playwright gspread google-auth
           playwright install chromium --with-deps
 
       - name: Preparar datos anteriores
@@ -43,6 +43,7 @@ jobs:
           EMAIL_REMITENTE: ${{ secrets.EMAIL_REMITENTE }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           EMAIL_DESTINATARIO: ${{ secrets.EMAIL_DESTINATARIO }}
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
         run: python scraping_cloud.py
 
       - name: Guardar Excel como artefacto

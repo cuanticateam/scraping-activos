@@ -1,1 +1,3 @@
 openpyxl
+gspread
+google-auth

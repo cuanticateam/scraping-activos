@@ -487,6 +487,13 @@ if __name__ == "__main__":
     # Excel
     guardar_excel(med, ant, cm, ca)
 
+    # Google Sheets
+    try:
+        from sheets_sync import sync_to_sheets
+        sync_to_sheets(med, ant, cm, ca)
+    except Exception as e:
+        print(f"  Error Google Sheets: {e}")
+
     # Email
     if todos_cambios:
         enviar_email(todos_cambios)

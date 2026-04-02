@@ -603,6 +603,13 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"Drive: {e}")
 
+    # ── Google Sheets ──
+    try:
+        from sheets_sync import sync_to_sheets
+        sync_to_sheets(inmuebles_med, inmuebles_ant, cambios_med, cambios_ant)
+    except Exception as e:
+        print(f"  Error Google Sheets: {e}")
+
     # ── Notificacion ──
     if todos_cambios:
         enviar_email(todos_cambios)
