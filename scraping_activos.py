@@ -5,8 +5,7 @@ Extrae inmuebles en Medellin y Antioquia, detecta cambios y notifica.
 Uso: py -X utf8 scraping_activos.py
 """
 
-import urllib.request, urllib.parse, json, re, os, shutil, smtplib, time
-import openpyxl, openpyxl.styles, openpyxl.utils
+import urllib.request, urllib.parse, json, re, os, smtplib, time
 from datetime import datetime, timedelta
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -17,8 +16,6 @@ from playwright.sync_api import sync_playwright
 # ═══════════════════════════════════════════════════════════════════════════════
 
 CARPETA_SCRIPT     = r"D:\Victoria\Trabajo\Papá\Trabajo\VS CODE\scraping-activos"
-ARCHIVO_EXCEL      = os.path.join(CARPETA_SCRIPT, "inmuebles_medellin.xlsx")
-ARCHIVO_DRIVE      = r"G:\Mi unidad\inmuebles_medellin.xlsx"
 ARCHIVO_DATOS_PREV = os.path.join(CARPETA_SCRIPT, "datos_anteriores.json")
 ARCHIVO_CAMBIOS    = os.path.join(CARPETA_SCRIPT, "registro_cambios.json")
 
@@ -41,13 +38,6 @@ TIPOS = {
     24:"Lote con Construccion",29:"Oficina",30:"Parqueadero",
 }
 
-# Colores
-COLOR_HEADER     = "1F3864"
-COLOR_CRONOGRAMA = "D6E4F0"
-COLOR_MANIF      = "F2F2F2"
-COLOR_SUBASTA    = "FFF2CC"
-COLOR_CAMBIO     = "FF4444"    # Rojo para celdas con cambios
-FONT_HEADER      = "FFFFFF"
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -402,123 +392,8 @@ def formatear_precio(v):
     except: return str(v)
 
 
-def color_fila(estado_crono, estado_api):
-    cod = (estado_api or "").upper()
-    if estado_crono == "Manifestacion Abierta": return COLOR_MANIF
-    if "SUBASTA" in cod or "PROXIMO" in cod:    return COLOR_SUBASTA
-    return COLOR_CRONOGRAMA
-
-
-def escribir_pestaña(wb, titulo_hoja, titulo_texto, inmuebles, cambios_activos, pestaña):
-    ws = wb.create_sheet(titulo_hoja)
-
-    COLS = ["NOMBRE","DIRECCION","TIPO","AREA m2","VALOR",
-            "ESTADO CRONOGRAMA","ETAPA ACTUAL","PLAZO","CLIENTE","LINK"]
-    CAMPOS = ["nombre","direccion","tipo","area_m2","valor",
-              "estado_crono","etapa_actual","plazo","_cliente","link"]
-    ANCHOS = [30, 38, 18, 10, 20, 22, 35, 10, 14, 55]
-    ALIN   = ["l","l","c","c","c","c","l","c","c","l"]
-
-    borde = openpyxl.styles.Border(
-        left=openpyxl.styles.Side("thin", color="CCCCCC"),
-        right=openpyxl.styles.Side("thin", color="CCCCCC"),
-        top=openpyxl.styles.Side("thin", color="CCCCCC"),
-        bottom=openpyxl.styles.Side("thin", color="CCCCCC"),
-    )
-
-    # Titulo
-    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(COLS))
-    t = ws.cell(row=1, column=1, value=titulo_texto)
-    t.font = openpyxl.styles.Font(name="Calibri", bold=True, size=14, color=FONT_HEADER)
-    t.fill = openpyxl.styles.PatternFill("solid", fgColor=COLOR_HEADER)
-    t.alignment = openpyxl.styles.Alignment(horizontal="center", vertical="center")
-    ws.row_dimensions[1].height = 28
-
-    # Encabezados
-    for c, nombre in enumerate(COLS, 1):
-        cell = ws.cell(row=2, column=c, value=nombre)
-        cell.fill = openpyxl.styles.PatternFill("solid", fgColor="2E5D9E")
-        cell.font = openpyxl.styles.Font(name="Calibri", bold=True, color=FONT_HEADER, size=10)
-        cell.alignment = openpyxl.styles.Alignment(horizontal="center", vertical="center", wrap_text=True)
-        cell.border = borde
-    ws.row_dimensions[2].height = 30
-
-    # Datos
-    relleno_rojo = openpyxl.styles.PatternFill("solid", fgColor=COLOR_CAMBIO)
-    fuente_rojo  = openpyxl.styles.Font(name="Calibri", size=10, color="FFFFFF", bold=True)
-
-    for fila, item in enumerate(inmuebles, 3):
-        pid = str(item.get("_id",""))
-        color_base = color_fila(item.get("estado_crono",""), item.get("estado_api",""))
-        relleno_base = openpyxl.styles.PatternFill("solid", fgColor=color_base)
-        fuente_base  = openpyxl.styles.Font(name="Calibri", size=10)
-
-        for c, (campo, alin) in enumerate(zip(CAMPOS, ALIN), 1):
-            val = "Grupo NBC" if campo == "_cliente" else item.get(campo, "")
-            cell = ws.cell(row=fila, column=c, value=val)
-
-            # Verificar si este campo cambio (rojo)
-            clave_cambio = f"{pestaña}:{pid}:{campo}"
-            if clave_cambio in cambios_activos:
-                cell.fill = relleno_rojo
-                cell.font = fuente_rojo
-            else:
-                cell.fill = relleno_base
-                cell.font = fuente_base
-
-            cell.alignment = openpyxl.styles.Alignment(
-                horizontal="left" if alin == "l" else "center",
-                vertical="center", wrap_text=(alin == "l")
-            )
-            cell.border = borde
-        ws.row_dimensions[fila].height = 22
-
-    # Anchos y filtros
-    for c, w in enumerate(ANCHOS, 1):
-        ws.column_dimensions[openpyxl.utils.get_column_letter(c)].width = w
-    ws.auto_filter.ref = f"A2:{openpyxl.utils.get_column_letter(len(COLS))}{len(inmuebles)+2}"
-    ws.freeze_panes = "A3"
-
-
-def guardar_excel(medellin, antioquia, cambios_med, cambios_ant):
-    wb = openpyxl.Workbook()
-    wb.remove(wb.active)  # eliminar hoja por defecto
-
-    escribir_pestaña(wb, "Medellin", "LISTADO DE VENTA MASIVA - MEDELLIN",
-                     medellin, cambios_med, "med")
-    escribir_pestaña(wb, "Antioquia", "LISTADO DE VENTA MASIVA - ANTIOQUIA (sin Medellin)",
-                     antioquia, cambios_ant, "ant")
-
-    # Leyenda
-    ws = wb.create_sheet("Leyenda")
-    ws["A1"] = "Leyenda de colores"
-    ws["A1"].font = openpyxl.styles.Font(bold=True, size=12)
-    leyenda = [
-        ("Con cronograma - Proximo Subasta", COLOR_SUBASTA),
-        ("Con cronograma - En proceso",      COLOR_CRONOGRAMA),
-        ("Manifestacion Abierta",            COLOR_MANIF),
-        ("DATO QUE CAMBIO (rojo por 2 dias)", COLOR_CAMBIO),
-    ]
-    for i, (desc, col) in enumerate(leyenda, 2):
-        c = ws.cell(row=i, column=1, value=desc)
-        c.fill = openpyxl.styles.PatternFill("solid", fgColor=col)
-        if col == COLOR_CAMBIO:
-            c.font = openpyxl.styles.Font(color="FFFFFF", bold=True)
-    ws.column_dimensions["A"].width = 50
-
-    # Info
-    ws2 = wb.create_sheet("Info")
-    ws2["A1"] = "Ultima actualizacion";  ws2["B1"] = datetime.now().strftime("%Y-%m-%d %H:%M")
-    ws2["A2"] = "Medellin";             ws2["B2"] = f"{len(medellin)} inmuebles"
-    ws2["A3"] = "Antioquia (sin Med.)"; ws2["B3"] = f"{len(antioquia)} inmuebles"
-    ws2["A4"] = "Fuente";               ws2["B4"] = "activosporcolombia.com"
-
-    wb.save(ARCHIVO_EXCEL)
-    print(f"Guardado: {ARCHIVO_EXCEL}")
-
-
 # ═══════════════════════════════════════════════════════════════════════════════
-# 6. ARMAR DATOS FINALES
+# 5. ARMAR DATOS FINALES
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def procesar_propiedades(props_api, detalles_scrape):
@@ -579,7 +454,7 @@ if __name__ == "__main__":
     inmuebles_ant = procesar_propiedades(props_ant, det_ant)
 
     # ── Detectar cambios ──
-    print("\n[5/5] Detectando cambios y generando Excel...")
+    print("\n[5/5] Detectando cambios y actualizando Google Sheets...")
     cambios_med, resumen_med = detectar_cambios(inmuebles_med, "med")
     cambios_ant, resumen_ant = detectar_cambios(inmuebles_ant, "ant")
     todos_cambios = resumen_med + resumen_ant
@@ -593,22 +468,9 @@ if __name__ == "__main__":
     else:
         print("  Sin cambios respecto a la ultima actualizacion")
 
-    # ── Excel ──
-    guardar_excel(inmuebles_med, inmuebles_ant, cambios_med, cambios_ant)
-
-    # ── Copiar a Drive ──
-    try:
-        shutil.copy2(ARCHIVO_EXCEL, ARCHIVO_DRIVE)
-        print(f"Copiado a Drive: {ARCHIVO_DRIVE}")
-    except Exception as e:
-        print(f"Drive: {e}")
-
     # ── Google Sheets ──
-    try:
-        from sheets_sync import sync_to_sheets
-        sync_to_sheets(inmuebles_med, inmuebles_ant, cambios_med, cambios_ant)
-    except Exception as e:
-        print(f"  Error Google Sheets: {e}")
+    from sheets_sync import sync_to_sheets
+    sync_to_sheets(inmuebles_med, inmuebles_ant, cambios_med, cambios_ant)
 
     # ── Notificacion ──
     if todos_cambios:

@@ -30,7 +30,7 @@ jobs:
 
       - name: Instalar dependencias
         run: |
-          pip install openpyxl playwright gspread google-auth
+          pip install playwright gspread google-auth
           playwright install chromium --with-deps
 
       - name: Preparar datos anteriores
@@ -46,17 +46,10 @@ jobs:
           GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
         run: python scraping_cloud.py
 
-      - name: Guardar Excel como artefacto
-        uses: actions/upload-artifact@v4
-        with:
-          name: inmuebles-medellin
-          path: inmuebles_medellin.xlsx
-          retention-days: 90
-
       - name: Commit datos actualizados
         run: |
           git config user.name "Scraping Bot"
           git config user.email "bot@scraping.local"
-          git add -f datos_anteriores.json registro_cambios.json inmuebles_medellin.xlsx
+          git add -f datos_anteriores.json registro_cambios.json
           git diff --staged --quiet || git commit -m "Actualizar datos $(date +%Y-%m-%d_%H:%M)"
           git push || echo "No se pudo hacer push"

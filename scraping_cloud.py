@@ -6,7 +6,6 @@ Detecta cambios, inmuebles nuevos/eliminados y envia alerta por email.
 """
 
 import urllib.request, urllib.parse, json, re, os, smtplib, time
-import openpyxl, openpyxl.styles, openpyxl.utils
 from datetime import datetime, timedelta
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -24,7 +23,6 @@ EMAIL_DESTINATARIO = os.environ.get("EMAIL_DESTINATARIO", "")
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DATOS_FILE   = os.path.join(SCRIPT_DIR, "datos_anteriores.json")
 CAMBIOS_FILE = os.path.join(SCRIPT_DIR, "registro_cambios.json")
-EXCEL_FILE   = os.path.join(SCRIPT_DIR, "inmuebles_medellin.xlsx")
 
 TIPOS = {
     1:"Apartaestudio",2:"Apartamento",3:"Bodega",4:"Casa",5:"Casa Lote",
@@ -32,10 +30,6 @@ TIPOS = {
     14:"Edificio",16:"Finca",17:"Garaje",21:"Local Comercial",22:"Lote",
     24:"Lote con Construccion",29:"Oficina",30:"Parqueadero",
 }
-
-COLOR_HEADER="1F3864"; COLOR_CRONO="D6E4F0"; COLOR_MANIF="F2F2F2"
-COLOR_SUBASTA="FFF2CC"; COLOR_CAMBIO="FF4444"; COLOR_NUEVO="2E7D32"
-FONT_W="FFFFFF"
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -285,106 +279,7 @@ def detectar_cambios(inmuebles, tab):
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# 5. EXCEL
-# ═══════════════════════════════════════════════════════════════════════════════
-
-def color_fila(ec, ea):
-    cod = (ea or "").upper()
-    if ec == "Manifestacion Abierta": return COLOR_MANIF
-    if "SUBASTA" in cod or "PROXIMO" in cod: return COLOR_SUBASTA
-    return COLOR_CRONO
-
-
-def escribir_pestaña(wb, titulo_hoja, titulo, items, cambios, tab):
-    ws = wb.create_sheet(titulo_hoja)
-    COLS=["NOMBRE","DIRECCION","TIPO","AREA m2","VALOR",
-          "ESTADO CRONOGRAMA","ETAPA ACTUAL","PLAZO","CLIENTE","LINK"]
-    CAMPOS_E=["nombre","direccion","tipo","area_m2","valor",
-              "estado_crono","etapa_actual","plazo","_c","link"]
-    ANCHOS=[30,38,18,10,20,22,35,10,14,55]
-    ALIN=["l","l","c","c","c","c","l","c","c","l"]
-    borde=openpyxl.styles.Border(
-        left=openpyxl.styles.Side("thin",color="CCCCCC"),
-        right=openpyxl.styles.Side("thin",color="CCCCCC"),
-        top=openpyxl.styles.Side("thin",color="CCCCCC"),
-        bottom=openpyxl.styles.Side("thin",color="CCCCCC"),
-    )
-
-    ws.merge_cells(start_row=1,start_column=1,end_row=1,end_column=len(COLS))
-    t=ws.cell(row=1,column=1,value=titulo)
-    t.font=openpyxl.styles.Font(name="Calibri",bold=True,size=14,color=FONT_W)
-    t.fill=openpyxl.styles.PatternFill("solid",fgColor=COLOR_HEADER)
-    t.alignment=openpyxl.styles.Alignment(horizontal="center",vertical="center")
-    ws.row_dimensions[1].height=28
-
-    for c,n in enumerate(COLS,1):
-        cl=ws.cell(row=2,column=c,value=n)
-        cl.fill=openpyxl.styles.PatternFill("solid",fgColor="2E5D9E")
-        cl.font=openpyxl.styles.Font(name="Calibri",bold=True,color=FONT_W,size=10)
-        cl.alignment=openpyxl.styles.Alignment(horizontal="center",vertical="center",wrap_text=True)
-        cl.border=borde
-    ws.row_dimensions[2].height=30
-
-    rojo_fill=openpyxl.styles.PatternFill("solid",fgColor=COLOR_CAMBIO)
-    rojo_font=openpyxl.styles.Font(name="Calibri",size=10,color="FFFFFF",bold=True)
-
-    for fila,item in enumerate(items,3):
-        pid=item["_id"]
-        cf=color_fila(item.get("estado_crono",""),item.get("estado_api",""))
-        base_fill=openpyxl.styles.PatternFill("solid",fgColor=cf)
-        base_font=openpyxl.styles.Font(name="Calibri",size=10)
-        for c,(campo,al) in enumerate(zip(CAMPOS_E,ALIN),1):
-            val="Grupo NBC" if campo=="_c" else item.get(campo,"")
-            cl=ws.cell(row=fila,column=c,value=val)
-            ck=f"{tab}:{pid}:{campo}"
-            if ck in cambios: cl.fill=rojo_fill; cl.font=rojo_font
-            else: cl.fill=base_fill; cl.font=base_font
-            cl.alignment=openpyxl.styles.Alignment(
-                horizontal="left" if al=="l" else "center",
-                vertical="center",wrap_text=(al=="l"))
-            cl.border=borde
-        ws.row_dimensions[fila].height=22
-
-    for c,w in enumerate(ANCHOS,1):
-        ws.column_dimensions[openpyxl.utils.get_column_letter(c)].width=w
-    ws.auto_filter.ref=f"A2:{openpyxl.utils.get_column_letter(len(COLS))}{len(items)+2}"
-    ws.freeze_panes="A3"
-
-
-def guardar_excel(med, ant, cambios_med, cambios_ant):
-    wb=openpyxl.Workbook()
-    wb.remove(wb.active)
-    escribir_pestaña(wb,"Medellin","LISTADO DE VENTA MASIVA - MEDELLIN",med,cambios_med,"med")
-    escribir_pestaña(wb,"Antioquia","LISTADO DE VENTA MASIVA - ANTIOQUIA (sin Medellin)",ant,cambios_ant,"ant")
-
-    wl=wb.create_sheet("Leyenda")
-    wl["A1"]="Leyenda de colores"; wl["A1"].font=openpyxl.styles.Font(bold=True,size=12)
-    leyenda=[
-        ("Proximo Subasta",COLOR_SUBASTA),
-        ("Con cronograma - En proceso",COLOR_CRONO),
-        ("Manifestacion Abierta",COLOR_MANIF),
-        ("DATO QUE CAMBIO (rojo 2 dias)",COLOR_CAMBIO),
-        ("INMUEBLE NUEVO (todo rojo)",COLOR_CAMBIO),
-    ]
-    for i,(d,co) in enumerate(leyenda,2):
-        c=wl.cell(row=i,column=1,value=d)
-        c.fill=openpyxl.styles.PatternFill("solid",fgColor=co)
-        if co==COLOR_CAMBIO: c.font=openpyxl.styles.Font(color="FFFFFF",bold=True)
-    wl.column_dimensions["A"].width=50
-
-    wi=wb.create_sheet("Info")
-    wi["A1"]="Ultima actualizacion"; wi["B1"]=datetime.now().strftime("%Y-%m-%d %H:%M")
-    wi["A2"]="Medellin"; wi["B2"]=f"{len(med)} inmuebles"
-    wi["A3"]="Antioquia (sin Med.)"; wi["B3"]=f"{len(ant)} inmuebles"
-    wi["A4"]="Fuente"; wi["B4"]="activosporcolombia.com"
-
-    wb.save(EXCEL_FILE)
-    print(f"Excel guardado: {EXCEL_FILE}")
-    return EXCEL_FILE
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# 6. EMAIL
+# 5. EMAIL
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def enviar_email(resumen):
@@ -472,7 +367,7 @@ if __name__ == "__main__":
     ant = procesar(props_ant, det_ant)
 
     # Detectar cambios
-    print("\n[5/5] Detectando cambios y generando Excel...")
+    print("\n[5/5] Detectando cambios y actualizando Google Sheets...")
     cm, rm = detectar_cambios(med, "med")
     ca, ra = detectar_cambios(ant, "ant")
     todos_cambios = rm + ra
@@ -484,15 +379,9 @@ if __name__ == "__main__":
     else:
         print("  Sin cambios")
 
-    # Excel
-    guardar_excel(med, ant, cm, ca)
-
     # Google Sheets
-    try:
-        from sheets_sync import sync_to_sheets
-        sync_to_sheets(med, ant, cm, ca)
-    except Exception as e:
-        print(f"  Error Google Sheets: {e}")
+    from sheets_sync import sync_to_sheets
+    sync_to_sheets(med, ant, cm, ca)
 
     # Email
     if todos_cambios:
