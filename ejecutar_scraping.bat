@@ -1,6 +1,6 @@
 @echo off
 title Actualizando Inmuebles Medellin...
-cd /d "D:\Victoria\Trabajo\Papá\Trabajo\VS CODE\scraping-activos"
+cd /d "%~dp0"
 echo.
 echo ============================================
 echo   ACTUALIZANDO TABLA DE INMUEBLES MEDELLIN

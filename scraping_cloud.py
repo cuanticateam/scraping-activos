@@ -138,8 +138,19 @@ def extraer_nombre_edificio(lineas, barrio_fallback):
 
 
 def extraer_cronograma(lineas):
-    ETAPAS = ["PUBLICACI","REGISTRO","DILIGENCIA","FINANCIERO",
-              "CUPONES","SERIEDAD","VALIDACI","SUBASTA"]
+    """
+    Parsea el cronograma de la pagina. Estructura de cada bloque:
+      NOMBRE ETAPA / dia_inicio / DIA_SEMANA / [hasta / dia_fin / DIA_SEMANA] /
+      mes. año / N dias / FINALIZADO|ACTIVO|PROXIMO
+    Retorna: (estado_crono, etapa_actual, plazo)
+    """
+    MESES_CORTOS = {"ene":"01","feb":"02","mar":"03","abr":"04","may":"05",
+                    "jun":"06","jul":"07","ago":"08","sep":"09","oct":"10",
+                    "nov":"11","dic":"12"}
+    MESES_LARGOS = {"enero":"01","febrero":"02","marzo":"03","abril":"04","mayo":"05",
+                    "junio":"06","julio":"07","agosto":"08","septiembre":"09",
+                    "octubre":"10","noviembre":"11","diciembre":"12"}
+    ESTADOS = {"FINALIZADO", "ACTIVO", "PRÓXIMO", "PROXIMO"}
 
     for l in lineas:
         if "manifestaci" in l.lower() and "abierta" in l.lower():
@@ -148,39 +159,104 @@ def extraer_cronograma(lineas):
     if not any("ronograma" in l for l in lineas):
         return "Manifestacion Abierta", "", "X"
 
-    etapa_activa = ""
+    # Parsear bloques de etapas desde "Fechas del Proceso"
+    inicio = None
     for i, l in enumerate(lineas):
-        # Solo considerar lineas cortas (nombres de etapa, no parrafos de descripcion)
-        if len(l) > 120:
+        if "Fechas del Proceso" in l:
+            inicio = i + 1
+            break
+    if inicio is None:
+        for i, l in enumerate(lineas):
+            if "ronograma" in l:
+                inicio = i + 1
+                break
+    if inicio is None:
+        return "Con cronograma", "", "X"
+
+    # Recorrer lineas y armar bloques de etapas
+    bloques = []
+    bloque_actual = None
+    ETAPAS_KEYWORDS = ["PUBLICACI","REGISTRO","DILIGENCIA","FINANCIERO",
+                       "CUPONES","SERIEDAD","VALIDACI","SUBASTA","EXPEDICI"]
+
+    for i in range(inicio, len(lineas)):
+        l = lineas[i].strip()
+        if not l:
             continue
+        # Terminar al salir de la zona de cronograma
+        if any(x in l for x in ["Aplican t", "Descripci", "Ubicaci", "Galeria"]):
+            break
+
         lu = l.upper()
-        for etapa in ETAPAS:
-            if etapa in lu:
-                contexto = " ".join(lineas[max(0,i-2):i+6]).upper()
-                # Evitar falso positivo con "ACTIVOS POR COLOMBIA"
-                contexto_limpio = contexto.replace("ACTIVOS POR COLOMBIA", "")
-                contexto_limpio = contexto_limpio.replace("ACTIVOS ESPECIALES", "")
-                if re.search(r"\bACTIVO\b", contexto_limpio):
-                    etapa_activa = l.strip()
+        # Detectar inicio de nueva etapa
+        es_etapa = any(e in lu for e in ETAPAS_KEYWORDS) and len(l) < 120
+        if es_etapa:
+            if bloque_actual:
+                bloques.append(bloque_actual)
+            bloque_actual = {"nombre": l, "lineas_raw": [], "estado": "",
+                             "dia_fin": "", "mes_num": ""}
+            continue
+
+        if bloque_actual is None:
+            continue
+
+        bloque_actual["lineas_raw"].append(l)
+
+        # Detectar estado
+        if lu in ESTADOS or lu == "PRÓXIMO":
+            bloque_actual["estado"] = "ACTIVO" if lu == "ACTIVO" else (
+                "FINALIZADO" if lu == "FINALIZADO" else "PROXIMO")
+
+        # Detectar mes/año (ej: "abr. 2026" o "mar. a abr. 2026")
+        m_mes = re.search(r"(\w{3})\.\s*(?:a\s+\w{3}\.\s*)?(\d{4})", l)
+        if m_mes:
+            # Tomar el ultimo mes mencionado (ej: "mar. a abr. 2026" -> abr)
+            todos_meses = re.findall(r"(\w{3})\.", l)
+            ultimo_mes = todos_meses[-1] if todos_meses else m_mes.group(1)
+            bloque_actual["mes_num"] = MESES_CORTOS.get(ultimo_mes.lower(), "")
+
+    if bloque_actual:
+        bloques.append(bloque_actual)
+
+    # Para cada bloque, extraer dia_fin (ultimo numero antes del estado/mes)
+    for bloque in bloques:
+        numeros = []
+        for rl in bloque["lineas_raw"]:
+            if re.fullmatch(r"\d{1,2}", rl.strip()):
+                numeros.append(rl.strip())
+        # dia_fin = ultimo numero encontrado (si hay "hasta X", X es el fin)
+        if numeros:
+            bloque["dia_fin"] = numeros[-1]
+        elif len(numeros) == 0:
+            # Etapa de un solo dia, buscar el unico numero
+            for rl in bloque["lineas_raw"]:
+                m = re.search(r"^(\d{1,2})$", rl.strip())
+                if m:
+                    bloque["dia_fin"] = m.group(1)
                     break
-        if etapa_activa:
-            break
 
+    # Buscar etapa ACTIVO; si no hay, tomar la primera PROXIMO
+    etapa_activa = None
+    for b in bloques:
+        if b["estado"] == "ACTIVO":
+            etapa_activa = b
+    if etapa_activa is None:
+        for b in bloques:
+            if b["estado"] == "PROXIMO":
+                etapa_activa = b
+                break
+
+    if etapa_activa is None:
+        return "Con cronograma", "", "X"
+
+    # Armar plazo con dia_fin/mes de la etapa activa
     plazo = "X"
-    for l in lineas:
-        m = re.search(r"Fin:\s*\w+,\s*(\d+)\s+de\s+(\w+)\s+de\s+(\d{4})", l)
-        if m:
-            dia = m.group(1).zfill(2)
-            meses = {"enero":"01","febrero":"02","marzo":"03","abril":"04","mayo":"05",
-                     "junio":"06","julio":"07","agosto":"08","septiembre":"09",
-                     "octubre":"10","noviembre":"11","diciembre":"12"}
-            mes = meses.get(m.group(2).lower(), "??")
-            plazo = f"{dia}/{mes}"
-            break
+    if etapa_activa["dia_fin"] and etapa_activa["mes_num"]:
+        plazo = f"{etapa_activa['dia_fin'].zfill(2)}/{etapa_activa['mes_num']}"
+    elif etapa_activa["dia_fin"]:
+        plazo = etapa_activa["dia_fin"]
 
-    if etapa_activa or plazo != "X":
-        return "Con cronograma", etapa_activa, plazo
-    return "Manifestacion Abierta", "", "X"
+    return "Con cronograma", etapa_activa["nombre"], plazo
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
