@@ -330,8 +330,12 @@ def detectar_cambios(inmuebles, tab):
 
         # Inmueble NUEVO
         if not prev:
-            resumen.append(f"NUEVO [{tab.upper()}] {item.get('nombre','?')} - {item.get('tipo','')} - {item.get('valor','')}")
-            # Marcar todas las celdas como cambio para que salgan en rojo
+            resumen.append({
+                "tipo": "NUEVO", "tab": tab.upper(),
+                "nombre": item.get("nombre","?"),
+                "tipo_inmueble": item.get("tipo",""),
+                "valor": item.get("valor",""),
+            })
             for campo in CAMPOS:
                 registro[f"{base}:{campo}"] = ahora
 
@@ -341,10 +345,11 @@ def detectar_cambios(inmuebles, tab):
             viejo = str(prev.get(campo,""))
             if prev and nuevo != viejo:
                 registro[f"{base}:{campo}"] = ahora
-                resumen.append(
-                    f"CAMBIO [{tab.upper()}] {item.get('nombre','?')}: "
-                    f"{campo} cambio de '{viejo}' a '{nuevo}'"
-                )
+                resumen.append({
+                    "tipo": "CAMBIO", "tab": tab.upper(),
+                    "nombre": item.get("nombre","?"),
+                    "campo": campo, "antes": viejo, "ahora": nuevo,
+                })
 
         anteriores[base] = {c: str(item.get(c,"")) for c in CAMPOS}
 
@@ -353,7 +358,10 @@ def detectar_cambios(inmuebles, tab):
         if clave.startswith(f"{tab}:") and clave not in ids_actuales:
             nombre_viejo = anteriores[clave].get("nombre", "?")
             tipo_viejo = anteriores[clave].get("tipo", "")
-            resumen.append(f"ELIMINADO [{tab.upper()}] {nombre_viejo} - {tipo_viejo}")
+            resumen.append({
+                "tipo": "ELIMINADO", "tab": tab.upper(),
+                "nombre": nombre_viejo, "tipo_inmueble": tipo_viejo,
+            })
             del anteriores[clave]
 
     # Limpiar cambios viejos
@@ -370,50 +378,114 @@ def detectar_cambios(inmuebles, tab):
 # 5. EMAIL
 # ═══════════════════════════════════════════════════════════════════════════════
 
+NOMBRES_CAMPO = {
+    "nombre": "Nombre", "direccion": "Direccion", "tipo": "Tipo",
+    "valor": "Valor", "estado_crono": "Estado", "etapa_actual": "Etapa",
+    "plazo": "Plazo",
+}
+
 def enviar_email(resumen):
     if not EMAIL_REMITENTE or not EMAIL_CONTRASENA or not resumen:
         return
     try:
-        # Separar por tipo
-        nuevos = [c for c in resumen if c.startswith("NUEVO")]
-        eliminados = [c for c in resumen if c.startswith("ELIMINADO")]
-        cambios = [c for c in resumen if c.startswith("CAMBIO")]
+        nuevos = [c for c in resumen if c["tipo"] == "NUEVO"]
+        eliminados = [c for c in resumen if c["tipo"] == "ELIMINADO"]
+        cambios = [c for c in resumen if c["tipo"] == "CAMBIO"]
 
-        cuerpo = f"ALERTA - Activos por Colombia\n"
-        cuerpo += f"Fecha: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n"
-        cuerpo += f"{'='*50}\n\n"
+        tabs_orden = []
+        for c in resumen:
+            if c["tab"] not in tabs_orden:
+                tabs_orden.append(c["tab"])
 
-        if nuevos:
-            cuerpo += f"INMUEBLES NUEVOS ({len(nuevos)}):\n"
-            for c in nuevos: cuerpo += f"  + {c}\n"
-            cuerpo += "\n"
+        fecha = datetime.now().strftime("%d/%m/%Y %H:%M")
 
-        if eliminados:
-            cuerpo += f"INMUEBLES ELIMINADOS ({len(eliminados)}):\n"
-            for c in eliminados: cuerpo += f"  - {c}\n"
-            cuerpo += "\n"
-
-        if cambios:
-            cuerpo += f"DATOS QUE CAMBIARON ({len(cambios)}):\n"
-            for c in cambios[:40]: cuerpo += f"  * {c}\n"
-            if len(cambios) > 40: cuerpo += f"  ... y {len(cambios)-40} mas\n"
-            cuerpo += "\n"
-
-        cuerpo += f"{'='*50}\n"
-        cuerpo += "La tabla se actualizo automaticamente.\n"
-
-        # Asunto descriptivo
         partes = []
         if nuevos: partes.append(f"{len(nuevos)} nuevos")
         if eliminados: partes.append(f"{len(eliminados)} eliminados")
         if cambios: partes.append(f"{len(cambios)} cambios")
         asunto = f"Activos Colombia - {', '.join(partes)}"
 
+        ESTILO_TABLA = (
+            "border-collapse:collapse;width:100%;font-family:Arial,sans-serif;"
+            "font-size:13px;margin-bottom:20px;"
+        )
+        ESTILO_TH = (
+            "background-color:#1F3864;color:white;padding:8px 12px;"
+            "text-align:left;border:1px solid #ccc;"
+        )
+        ESTILO_TD = "padding:8px 12px;border:1px solid #ddd;"
+        ESTILO_TD_ALT = ESTILO_TD + "background-color:#f8f8f8;"
+
+        html = f"""
+        <div style="font-family:Arial,sans-serif;max-width:800px;margin:0 auto;">
+        <h2 style="color:#1F3864;margin-bottom:5px;">Alerta - Activos por Colombia</h2>
+        <p style="color:#666;margin-top:0;">{fecha}</p>
+        """
+
+        if nuevos:
+            for tab in tabs_orden:
+                tab_nuevos = [c for c in nuevos if c["tab"] == tab]
+                if not tab_nuevos: continue
+                tab_nombre = "Medellin" if tab == "MED" else "Antioquia"
+                html += f'<h3 style="color:#2E7D32;">Nuevos - {tab_nombre} ({len(tab_nuevos)})</h3>'
+                html += f'<table style="{ESTILO_TABLA}">'
+                html += f'<tr><th style="{ESTILO_TH}">Inmueble</th>'
+                html += f'<th style="{ESTILO_TH}">Tipo</th>'
+                html += f'<th style="{ESTILO_TH}">Valor</th></tr>'
+                for i, c in enumerate(tab_nuevos):
+                    td = ESTILO_TD_ALT if i % 2 else ESTILO_TD
+                    html += f'<tr><td style="{td}">{c["nombre"]}</td>'
+                    html += f'<td style="{td}">{c["tipo_inmueble"]}</td>'
+                    html += f'<td style="{td}">{c["valor"]}</td></tr>'
+                html += '</table>'
+
+        if cambios:
+            for tab in tabs_orden:
+                tab_cambios = [c for c in cambios if c["tab"] == tab]
+                if not tab_cambios: continue
+                tab_nombre = "Medellin" if tab == "MED" else "Antioquia"
+                html += f'<h3 style="color:#1565C0;">Cambios - {tab_nombre} ({len(tab_cambios)})</h3>'
+                html += f'<table style="{ESTILO_TABLA}">'
+                html += f'<tr><th style="{ESTILO_TH}">Inmueble</th>'
+                html += f'<th style="{ESTILO_TH}">Campo</th>'
+                html += f'<th style="{ESTILO_TH}">Antes</th>'
+                html += f'<th style="{ESTILO_TH}">Ahora</th></tr>'
+                for i, c in enumerate(tab_cambios):
+                    td = ESTILO_TD_ALT if i % 2 else ESTILO_TD
+                    campo_nombre = NOMBRES_CAMPO.get(c["campo"], c["campo"])
+                    html += f'<tr><td style="{td}">{c["nombre"]}</td>'
+                    html += f'<td style="{td}">{campo_nombre}</td>'
+                    html += f'<td style="{td}">{c["antes"] or "-"}</td>'
+                    html += f'<td style="{td}">{c["ahora"] or "-"}</td></tr>'
+                html += '</table>'
+
+        if eliminados:
+            for tab in tabs_orden:
+                tab_elim = [c for c in eliminados if c["tab"] == tab]
+                if not tab_elim: continue
+                tab_nombre = "Medellin" if tab == "MED" else "Antioquia"
+                html += f'<h3 style="color:#C62828;">Eliminados - {tab_nombre} ({len(tab_elim)})</h3>'
+                html += f'<table style="{ESTILO_TABLA}">'
+                html += f'<tr><th style="{ESTILO_TH}">Inmueble</th>'
+                html += f'<th style="{ESTILO_TH}">Tipo</th></tr>'
+                for i, c in enumerate(tab_elim):
+                    td = ESTILO_TD_ALT if i % 2 else ESTILO_TD
+                    html += f'<tr><td style="{td}">{c["nombre"]}</td>'
+                    html += f'<td style="{td}">{c["tipo_inmueble"]}</td></tr>'
+                html += '</table>'
+
+        html += """
+        <p style="color:#999;font-size:12px;margin-top:20px;">
+        Tabla actualizada en Google Sheets<br>
+        Fuente: activosporcolombia.com
+        </p></div>
+        """
+
         msg = MIMEMultipart()
         msg["From"] = EMAIL_REMITENTE
         msg["To"] = EMAIL_DESTINATARIO
         msg["Subject"] = asunto
-        msg.attach(MIMEText(cuerpo, "plain"))
+        msg.attach(MIMEText(html, "html"))
 
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as s:
             s.login(EMAIL_REMITENTE, EMAIL_CONTRASENA)
@@ -462,7 +534,11 @@ if __name__ == "__main__":
 
     if todos_cambios:
         print(f"\n  *** {len(todos_cambios)} ALERTAS ***")
-        for c in todos_cambios[:15]: print(f"    {c}")
+        for c in todos_cambios[:15]:
+            if c["tipo"] == "CAMBIO":
+                print(f"    [{c['tab']}] {c['nombre']}: {c['campo']} {c['antes']} -> {c['ahora']}")
+            else:
+                print(f"    {c['tipo']} [{c['tab']}] {c['nombre']}")
         if len(todos_cambios) > 15: print(f"    ... y {len(todos_cambios)-15} mas")
     else:
         print("  Sin cambios")
