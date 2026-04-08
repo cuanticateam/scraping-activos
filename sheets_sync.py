@@ -185,6 +185,16 @@ def _escribir_pestaña(ws, titulo, inmuebles, cambios, tab):
         }
     })
 
+    # Filtros en encabezados (limpiar existente primero)
+    requests.append({"clearBasicFilter": {"sheetId": ws_id}})
+    requests.append({
+        "setBasicFilter": {
+            "filter": {
+                "range": _rango(ws_id, 1, 0, total_filas, len(COLS))
+            }
+        }
+    })
+
     # Ejecutar todo
     if requests:
         # Google limita a 100 requests por batch, dividir si necesario
