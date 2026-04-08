@@ -1,0 +1,254 @@
+{
+  "med:24304": {
+    "nombre": "La Provenza",
+    "direccion": "Carrera 15 No. 9C – 40 Interior 0141 Unidad de Vivienda 141",
+    "tipo": "Casa",
+    "valor": "$ 2.044.822.366",
+    "estado_crono": "Con cronograma",
+    "etapa_actual": "REGISTRO",
+    "plazo": "08/04"
+  },
+  "med:123": {
+    "nombre": "Meridian",
+    "direccion": "Patio Bonito, Medellín",
+    "tipo": "Oficina",
+    "valor": "$ 2.255.667.705",
+    "estado_crono": "Manifestacion Abierta",
+    "etapa_actual": "",
+    "plazo": "X"
+  },
+  "med:12951": {
+    "nombre": "Canto de la Cascada",
+    "direccion": "Calle 1B Sur # 29C-81 INT 0117 Conjunto Residencial Canto de la Cascada",
+    "tipo": "Casa",
+    "valor": "$ 600.648.000",
+    "estado_crono": "Con cronograma",
+    "etapa_actual": "REGISTRO",
+    "plazo": "12/04"
+  },
+  "med:4727": {
+    "nombre": "Candelaria",
+    "direccion": "Carrera 49 # 52-107, Interior 0107",
+    "tipo": "Local Comercial",
+    "valor": "$ 666.938.000",
+    "estado_crono": "Con cronograma",
+    "etapa_actual": "SUBASTA",
+    "plazo": "08/04"
+  },
+  "med:491": {
+    "nombre": "La Linde",
+    "direccion": "CL 6 16 17 CS 108 URB QUINTAS DE SAN LUIS",
+    "tipo": "Casa",
+    "valor": "$ 2.488.792.972",
+    "estado_crono": "Con cronograma",
+    "etapa_actual": "REGISTRO",
+    "plazo": "12/04"
+  },
+  "med:66": {
+    "nombre": "Alejandría",
+    "direccion": "Alejandría, Medellín",
+    "tipo": "Apartamento",
+    "valor": "$ 518.945.477",
+    "estado_crono": "Con cronograma",
+    "etapa_actual": "VALIDACIÓN Y CONFIRMACIÓN DE RECAUDO",
+    "plazo": "07/04"
+  },
+  "med:312": {
+    "nombre": "El Poblado",
+    "direccion": "Carrera 38 No 8 A",
+    "tipo": "Local Comercial",
+    "valor": "$ 2.145.988.777",
+    "estado_crono": "Con cronograma",
+    "etapa_actual": "SUBASTA",
+    "plazo": "08/04"
+  },
+  "med:187": {
+    "nombre": "Propiedad Horizontal Vicente B",
+    "direccion": "CALLE 54 # 47 – 31, APARTAMENTO 501 EDIFICIO PROPIEDAD HORIZONTAL VICENTE B. VILLA",
+    "tipo": "Apartamento",
+    "valor": "$ 337.176.000",
+    "estado_crono": "Con cronograma",
+    "etapa_actual": "REGISTRO",
+    "plazo": "12/04"
+  },
+  "med:3": {
+    "nombre": "Serrat",
+    "direccion": "Santa María De Los Ángeles, Medellín",
+    "tipo": "Apartamento",
+    "valor": "$ 1.089.816.808",
+    "estado_crono": "Con cronograma",
+    "etapa_actual": "REGISTRO",
+    "plazo": "12/04"
+  },
+  "med:2": {
+    "nombre": "Belén",
+    "direccion": "Calle 31A No. 65F",
+    "tipo": "Casa",
+    "valor": "$ 751.285.660",
+    "estado_crono": "Con cronograma",
+    "etapa_actual": "REGISTRO",
+    "plazo": "12/04"
+  },
+  "med:35865": {
+    "nombre": "La Ladera",
+    "direccion": "Carrera 31 # 63 – 30 AP 102 Urbanización Alcázar de Sucre",
+    "tipo": "Apartamento",
+    "valor": "$ 169.612.797",
+    "estado_crono": "Manifestacion Abierta",
+    "etapa_actual": "",
+    "plazo": "X"
+  },
+  "med:33316": {
+    "nombre": "Moncada P",
+    "direccion": "Carrera 59 No. 23 – 10 AP 301, Edificio Moncada",
+    "tipo": "Apartamento",
+    "valor": "$ 137.349.000",
+    "estado_crono": "Manifestacion Abierta",
+    "etapa_actual": "",
+    "plazo": "X"
+  },
+  "med:28808": {
+    "nombre": "Comercial",
+    "direccion": "Carrera 48 # 15 sur – 45",
+    "tipo": "Local Comercial",
+    "valor": "$ 2.826.132.634",
+    "estado_crono": "Manifestacion Abierta",
+    "etapa_actual": "",
+    "plazo": "X"
+  },
+  "med:28482": {
+    "nombre": "Manila",
+    "direccion": "CL 11B CRA 43A – 17 Int. 101",
+    "tipo": "Local Comercial",
+    "valor": "$ 839.998.000",
+    "estado_crono": "Manifestacion Abierta",
+    "etapa_actual": "",
+    "plazo": "X"
+  },
+  "med:18325": {
+    "nombre": "Sin nombre",
+    "direccion": "Calle 63 # 127-121 AP 204 Unidad Residencial El Portón de San Cristóbal",
+    "tipo": "Apartamento",
+    "valor": "$ 127.154.096",
+    "estado_crono": "Manifestacion Abierta",
+    "etapa_actual": "",
+    "plazo": "X"
+  },
+  "med:17798": {
+    "nombre": "Sevilla",
+    "direccion": "Calle 67A # 51C",
+    "tipo": "Apartamento",
+    "valor": "$ 133.999.167",
+    "estado_crono": "Manifestacion Abierta",
+    "etapa_actual": "",
+    "plazo": "X"
+  },
+  "med:17146": {
+    "nombre": "Girardot",
+    "direccion": "Calle 103C No. 66 – 75",
+    "tipo": "Garaje",
+    "valor": "$ 58.835.400",
+    "estado_crono": "Manifestacion Abierta",
+    "etapa_actual": "",
+    "plazo": "X"
+  },
+  "med:128": {
+    "nombre": "Gusgavi",
+    "direccion": ", Medellín",
+    "tipo": "Apartamento",
+    "valor": "$ 125.595.744",
+    "estado_crono": "Manifestacion Abierta",
+    "etapa_actual": "",
+    "plazo": "X"
+  },
+  "med:125": {
+    "nombre": "Sin nombre",
+    "direccion": ", Medellín",
+    "tipo": "Local Comercial",
+    "valor": "$ 684.975.228",
+    "estado_crono": "Manifestacion Abierta",
+    "etapa_actual": "",
+    "plazo": "X"
+  },
+  "med:97": {
+    "nombre": "Serbia",
+    "direccion": "Laureles, Medellín",
+    "tipo": "Apartamento",
+    "valor": "$ 443.027.911",
+    "estado_crono": "Con cronograma",
+    "etapa_actual": "FINALIZADO",
+    "plazo": "X"
+  },
+  "med:42": {
+    "nombre": "One Plaza P",
+    "direccion": "Patio Bonito, Medellín",
+    "tipo": "Oficina",
+    "valor": "$ 790.294.944",
+    "estado_crono": "Con cronograma",
+    "etapa_actual": "FINALIZADO",
+    "plazo": "X"
+  },
+  "med:354": {
+    "nombre": "Avenida Mall",
+    "direccion": "Calle 23 # 43A",
+    "tipo": "Local Comercial",
+    "valor": "$ 731.052.000",
+    "estado_crono": "Con cronograma",
+    "etapa_actual": "FINALIZADO",
+    "plazo": "X"
+  },
+  "med:46": {
+    "nombre": "Robledo",
+    "direccion": "Robledo, Medellín",
+    "tipo": "Apartamento",
+    "valor": "$ 251.461.847",
+    "estado_crono": "Con cronograma",
+    "etapa_actual": "FINALIZADO",
+    "plazo": "X"
+  },
+  "med:341": {
+    "nombre": "Sin nombre",
+    "direccion": "Carrera 80D No. 18 – 69 Sector La Gloria",
+    "tipo": "Casa",
+    "valor": "$ 424.630.146",
+    "estado_crono": "Con cronograma",
+    "etapa_actual": "FINALIZADO",
+    "plazo": "X"
+  },
+  "med:14": {
+    "nombre": "TORRE FERRARA P",
+    "direccion": "Alejandría, Medellín",
+    "tipo": "Apartamento",
+    "valor": "$ 1.354.494.445",
+    "estado_crono": "Manifestacion Abierta",
+    "etapa_actual": "",
+    "plazo": "X"
+  },
+  "med:16": {
+    "nombre": "Sin nombre",
+    "direccion": "Carrera 9 No. 2-10, Interior 201, Etapa 4, Parcela 64, Unidad Parcelaria Cinturón Verde, sector Las Palmas, Corregimiento de Santa Elena, Medellín, Antioquia",
+    "tipo": "Lote",
+    "valor": "$ 1.523.558.400",
+    "estado_crono": "Con cronograma",
+    "etapa_actual": "FINALIZADO",
+    "plazo": "X"
+  },
+  "ant:11012": {
+    "nombre": "Sin nombre",
+    "direccion": "",
+    "tipo": "Finca",
+    "valor": "$ 206.420.766",
+    "estado_crono": "Manifestacion Abierta",
+    "etapa_actual": "",
+    "plazo": "X"
+  },
+  "ant:298": {
+    "nombre": "Sin nombre",
+    "direccion": "Finca La Manuela",
+    "tipo": "Finca",
+    "valor": "$ 5.772.765.048",
+    "estado_crono": "Con cronograma",
+    "etapa_actual": "FINALIZADO",
+    "plazo": "X"
+  }
+}

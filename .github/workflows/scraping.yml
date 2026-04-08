@@ -33,7 +33,17 @@ jobs:
           pip install playwright gspread google-auth
           playwright install chromium --with-deps
 
-      - name: Preparar datos anteriores
+      - name: Restaurar datos anteriores (cache)
+        uses: actions/cache@v4
+        with:
+          path: |
+            datos_anteriores.json
+            registro_cambios.json
+          key: scraping-data-${{ github.run_number }}
+          restore-keys: |
+            scraping-data-
+
+      - name: Preparar datos si no hay cache
         run: |
           [ -f datos_anteriores.json ] || echo "{}" > datos_anteriores.json
           [ -f registro_cambios.json ] || echo "{}" > registro_cambios.json
@@ -45,11 +55,3 @@ jobs:
           EMAIL_DESTINATARIO: ${{ secrets.EMAIL_DESTINATARIO }}
           GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
         run: python scraping_cloud.py
-
-      - name: Commit datos actualizados
-        run: |
-          git config user.name "Scraping Bot"
-          git config user.email "bot@scraping.local"
-          git add -f datos_anteriores.json registro_cambios.json
-          git diff --staged --quiet || git commit -m "Actualizar datos $(date +%Y-%m-%d_%H:%M)"
-          git push || echo "No se pudo hacer push"
