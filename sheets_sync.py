@@ -101,11 +101,13 @@ def _preparar_hoja(sh, existentes, nombre, filas_min):
 
 
 def _escribir_pestaña(ws, titulo, inmuebles, cambios, tab):
-    COLS = ["NOMBRE","DIRECCION","TIPO","AREA m2","VALOR",
-            "ESTADO CRONOGRAMA","ETAPA ACTUAL","PLAZO","CLIENTE","LINK"]
-    CAMPOS = ["nombre","direccion","tipo","area_m2","valor",
-              "estado_crono","etapa_actual","plazo","_c","link"]
-    ANCHOS = [220,280,130,80,150,160,250,80,100,400]
+    COLS = ["NOMBRE","DIRECCION","TIPO",
+            "ESTADO CRONOGRAMA","ETAPA ACTUAL","PLAZO","CLIENTE","LINK",
+            "AREA m2","VALOR"]
+    CAMPOS = ["nombre","direccion","tipo",
+              "estado_crono","etapa_actual","plazo","_c","link",
+              "area_m2","valor"]
+    ANCHOS = [220,280,130,160,250,80,100,400,80,150]
 
     # Preparar todas las filas
     filas = []
@@ -162,6 +164,16 @@ def _escribir_pestaña(ws, titulo, inmuebles, cambios, tab):
         for j, campo in enumerate(CAMPOS):
             requests.append(_formato_celdas(ws_id, fila_idx, j, fila_idx+1, j+1,
                                              bg, None, False, 10))
+
+    # Wrap text en columna LINK (indice 7)
+    idx_link = CAMPOS.index("link")
+    requests.append({
+        "repeatCell": {
+            "range": _rango(ws_id, 2, idx_link, total_filas, idx_link + 1),
+            "cell": {"userEnteredFormat": {"wrapStrategy": "WRAP"}},
+            "fields": "userEnteredFormat.wrapStrategy"
+        }
+    })
 
     # Anchos de columna
     for j, ancho in enumerate(ANCHOS):
