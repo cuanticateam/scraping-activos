@@ -150,12 +150,21 @@ def extraer_cronograma(lineas):
 
     etapa_activa = ""
     for i, l in enumerate(lineas):
+        # Solo considerar lineas cortas (nombres de etapa, no parrafos de descripcion)
+        if len(l) > 120:
+            continue
         lu = l.upper()
-        if any(e in lu for e in ETAPAS):
-            contexto = " ".join(lineas[max(0,i-2):i+6]).upper()
-            if "ACTIVO" in contexto:
-                etapa_activa = l.strip()
-                break
+        for etapa in ETAPAS:
+            if etapa in lu:
+                contexto = " ".join(lineas[max(0,i-2):i+6]).upper()
+                # Evitar falso positivo con "ACTIVOS POR COLOMBIA"
+                contexto_limpio = contexto.replace("ACTIVOS POR COLOMBIA", "")
+                contexto_limpio = contexto_limpio.replace("ACTIVOS ESPECIALES", "")
+                if re.search(r"\bACTIVO\b", contexto_limpio):
+                    etapa_activa = l.strip()
+                    break
+        if etapa_activa:
+            break
 
     plazo = "X"
     for l in lineas:

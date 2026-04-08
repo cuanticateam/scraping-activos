@@ -22,7 +22,6 @@ COLOR_HDR2    = {"red":0.18, "green":0.36, "blue":0.62}   # 2E5D9E
 COLOR_CRONO   = {"red":0.84, "green":0.89, "blue":0.94}   # D6E4F0
 COLOR_MANIF   = {"red":0.95, "green":0.95, "blue":0.95}   # F2F2F2
 COLOR_SUBASTA = {"red":1.0,  "green":0.95, "blue":0.80}   # FFF2CC
-COLOR_CAMBIO  = {"red":1.0,  "green":0.27, "blue":0.27}   # FF4444
 COLOR_BLANCO  = {"red":1.0,  "green":1.0,  "blue":1.0}
 
 
@@ -161,14 +160,8 @@ def _escribir_pestaña(ws, titulo, inmuebles, cambios, tab):
         bg = color_fila(item.get("estado_crono",""), item.get("estado_api",""))
 
         for j, campo in enumerate(CAMPOS):
-            clave = f"{tab}:{pid}:{campo}"
-            if clave in cambios:
-                # Celda en rojo
-                requests.append(_formato_celdas(ws_id, fila_idx, j, fila_idx+1, j+1,
-                                                 COLOR_CAMBIO, COLOR_BLANCO, True, 10))
-            else:
-                requests.append(_formato_celdas(ws_id, fila_idx, j, fila_idx+1, j+1,
-                                                 bg, None, False, 10))
+            requests.append(_formato_celdas(ws_id, fila_idx, j, fila_idx+1, j+1,
+                                             bg, None, False, 10))
 
     # Anchos de columna
     for j, ancho in enumerate(ANCHOS):
@@ -206,8 +199,6 @@ def _escribir_leyenda(ws):
         ["Proximo Subasta"],
         ["Con cronograma - En proceso"],
         ["Manifestacion Abierta"],
-        ["DATO QUE CAMBIO (rojo 2 dias)"],
-        ["INMUEBLE NUEVO (todo rojo)"],
     ]
     ws.update(filas)
     ws_id = ws.id
@@ -216,8 +207,6 @@ def _escribir_leyenda(ws):
         _formato_celdas(ws_id, 1, 0, 2, 1, COLOR_SUBASTA, None, False, 10),
         _formato_celdas(ws_id, 2, 0, 3, 1, COLOR_CRONO, None, False, 10),
         _formato_celdas(ws_id, 3, 0, 4, 1, COLOR_MANIF, None, False, 10),
-        _formato_celdas(ws_id, 4, 0, 5, 1, COLOR_CAMBIO, COLOR_BLANCO, True, 10),
-        _formato_celdas(ws_id, 5, 0, 6, 1, COLOR_CAMBIO, COLOR_BLANCO, True, 10),
         {"updateDimensionProperties": {
             "range": {"sheetId": ws_id, "dimension": "COLUMNS", "startIndex": 0, "endIndex": 1},
             "properties": {"pixelSize": 350}, "fields": "pixelSize"
