@@ -279,6 +279,8 @@ def extraer_cronograma(lineas):
                 break
 
     if etapa_activa is None:
+        if bloques and all(b["estado"] == "FINALIZADO" for b in bloques):
+            return "Con cronograma", "FINALIZADO", "X"
         return "Con cronograma", "", "X"
 
     plazo = "X"

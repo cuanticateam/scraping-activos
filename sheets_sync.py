@@ -2,6 +2,9 @@
 """
 Modulo para sincronizar datos con Google Sheets.
 Usado por scraping_activos.py (PC) y scraping_cloud.py (nube).
+
+Columnas auto-actualizables: ESTADO CRONOGRAMA, ETAPA ACTUAL, PLAZO, VALOR
+Columnas manuales (preserva ediciones): NOMBRE, DIRECCION, TIPO, CLIENTE, LINK, AREA m2
 """
 
 import json, os
@@ -23,6 +26,18 @@ COLOR_CRONO   = {"red":0.84, "green":0.89, "blue":0.94}   # D6E4F0
 COLOR_MANIF   = {"red":0.95, "green":0.95, "blue":0.95}   # F2F2F2
 COLOR_SUBASTA = {"red":1.0,  "green":0.95, "blue":0.80}   # FFF2CC
 COLOR_BLANCO  = {"red":1.0,  "green":1.0,  "blue":1.0}
+
+COLS = ["NOMBRE","DIRECCION","TIPO",
+        "ESTADO CRONOGRAMA","ETAPA ACTUAL","PLAZO","CLIENTE","LINK",
+        "AREA m2","VALOR"]
+CAMPOS = ["nombre","direccion","tipo",
+          "estado_crono","etapa_actual","plazo","_c","link",
+          "area_m2","valor"]
+ANCHOS = [220,280,130,160,250,80,100,400,80,150]
+
+# Columnas que el script actualiza automaticamente (indice en CAMPOS)
+AUTO_CAMPOS = {"estado_crono", "etapa_actual", "plazo", "valor"}
+IDX_LINK = CAMPOS.index("link")
 
 
 def get_client():
@@ -57,25 +72,26 @@ def color_fila(estado_crono, estado_api):
 def sync_to_sheets(inmuebles_med, inmuebles_ant, cambios_med, cambios_ant):
     """
     Escribe los datos en Google Sheets con formato y colores.
+    Preserva ediciones manuales en columnas no-automaticas.
     """
     print("Conectando con Google Sheets...")
     client = get_client()
     sh = client.open_by_key(SPREADSHEET_ID)
 
-    # Crear/obtener pestanas
     hojas_existentes = {w.title: w for w in sh.worksheets()}
 
-    ws_med = _preparar_hoja(sh, hojas_existentes, "Medellin", len(inmuebles_med))
-    ws_ant = _preparar_hoja(sh, hojas_existentes, "Antioquia", len(inmuebles_ant))
-    ws_ley = _preparar_hoja(sh, hojas_existentes, "Leyenda", 6)
-    ws_inf = _preparar_hoja(sh, hojas_existentes, "Info", 5)
+    # Obtener hojas (sin borrar)
+    ws_med = _obtener_hoja(sh, hojas_existentes, "Medellin", len(inmuebles_med))
+    ws_ant = _obtener_hoja(sh, hojas_existentes, "Antioquia", len(inmuebles_ant))
 
-    # Eliminar Hoja 1 por defecto si existe
+    # Leyenda e Info se pueden reescribir siempre
+    ws_ley = _obtener_hoja(sh, hojas_existentes, "Leyenda", 6)
+    ws_inf = _obtener_hoja(sh, hojas_existentes, "Info", 5)
+
     if "Hoja 1" in hojas_existentes:
         try: sh.del_worksheet(hojas_existentes["Hoja 1"])
         except: pass
 
-    # Escribir datos
     print("  Escribiendo Medellin...")
     _escribir_pestaña(ws_med, "LISTADO DE VENTA MASIVA - MEDELLIN",
                       inmuebles_med, cambios_med, "med")
@@ -85,58 +101,70 @@ def sync_to_sheets(inmuebles_med, inmuebles_ant, cambios_med, cambios_ant):
                       inmuebles_ant, cambios_ant, "ant")
 
     print("  Escribiendo Leyenda e Info...")
+    ws_ley.clear()
     _escribir_leyenda(ws_ley)
+    ws_inf.clear()
     _escribir_info(ws_inf, len(inmuebles_med), len(inmuebles_ant))
 
     print(f"  Google Sheets actualizado: {sh.url}")
 
 
-def _preparar_hoja(sh, existentes, nombre, filas_min):
+def _obtener_hoja(sh, existentes, nombre, filas_min):
     if nombre in existentes:
-        ws = existentes[nombre]
-        ws.clear()
-    else:
-        ws = sh.add_worksheet(title=nombre, rows=max(filas_min + 5, 10), cols=12)
-    return ws
+        return existentes[nombre]
+    return sh.add_worksheet(title=nombre, rows=max(filas_min + 5, 10), cols=len(COLS))
 
 
 def _escribir_pestaña(ws, titulo, inmuebles, cambios, tab):
-    COLS = ["NOMBRE","DIRECCION","TIPO",
-            "ESTADO CRONOGRAMA","ETAPA ACTUAL","PLAZO","CLIENTE","LINK",
-            "AREA m2","VALOR"]
-    CAMPOS = ["nombre","direccion","tipo",
-              "estado_crono","etapa_actual","plazo","_c","link",
-              "area_m2","valor"]
-    ANCHOS = [220,280,130,160,250,80,100,400,80,150]
+    # ── Leer datos existentes para preservar ediciones manuales ──
+    existing = ws.get_all_values()
+    manual_por_link = {}  # link -> fila completa
+    if len(existing) > 2:
+        for row in existing[2:]:  # saltar titulo y encabezados
+            link = row[IDX_LINK] if IDX_LINK < len(row) else ""
+            if link:
+                manual_por_link[link] = row
 
-    # Preparar todas las filas
+    # ── Construir filas nuevas preservando columnas manuales ──
     filas = []
-    filas.append([titulo] + [""] * (len(COLS) - 1))   # fila 1: titulo
-    filas.append(COLS)                                  # fila 2: encabezados
+    filas.append([titulo] + [""] * (len(COLS) - 1))
+    filas.append(COLS)
+
     for item in inmuebles:
+        link = str(item.get("link", ""))
+        prev = manual_por_link.get(link)
+
         fila = []
-        for campo in CAMPOS:
-            if campo == "_c":
-                fila.append("Grupo NBC")
-            else:
+        for col_idx, campo in enumerate(CAMPOS):
+            if campo in AUTO_CAMPOS:
+                # Siempre usar valor del scraping
                 val = item.get(campo, "")
                 fila.append(str(val) if val is not None else "")
+            elif prev and col_idx < len(prev) and prev[col_idx]:
+                # Preservar valor manual existente
+                fila.append(prev[col_idx])
+            else:
+                # Propiedad nueva: usar valor del scraping
+                if campo == "_c":
+                    fila.append("Grupo NBC")
+                else:
+                    val = item.get(campo, "")
+                    fila.append(str(val) if val is not None else "")
         filas.append(fila)
 
-    # Escribir todo de una vez (rapido)
+    # ── Escribir (borrar y reescribir para manejar filas eliminadas) ──
+    ws.clear()
     if filas:
         ws.update(filas, value_input_option="RAW")
 
-    # Ajustar tamano
     total_filas = len(filas)
     try:
         if ws.row_count < total_filas:
             ws.resize(rows=total_filas + 2, cols=len(COLS))
     except: pass
 
-    # Formato por lotes
+    # ── Formato ──
     requests = []
-
     ws_id = ws.id
 
     # Merge titulo
@@ -157,19 +185,16 @@ def _escribir_pestaña(ws, titulo, inmuebles, cambios, tab):
 
     # Formato filas de datos
     for i, item in enumerate(inmuebles):
-        fila_idx = i + 2  # 0-based (titulo=0, headers=1, datos=2+)
-        pid = item.get("_id", "")
+        fila_idx = i + 2
         bg = color_fila(item.get("estado_crono",""), item.get("estado_api",""))
-
-        for j, campo in enumerate(CAMPOS):
+        for j in range(len(COLS)):
             requests.append(_formato_celdas(ws_id, fila_idx, j, fila_idx+1, j+1,
                                              bg, None, False, 10))
 
-    # Wrap text en columna LINK (indice 7)
-    idx_link = CAMPOS.index("link")
+    # Wrap text en columna LINK
     requests.append({
         "repeatCell": {
-            "range": _rango(ws_id, 2, idx_link, total_filas, idx_link + 1),
+            "range": _rango(ws_id, 2, IDX_LINK, total_filas, IDX_LINK + 1),
             "cell": {"userEnteredFormat": {"wrapStrategy": "WRAP"}},
             "fields": "userEnteredFormat.wrapStrategy"
         }
@@ -197,7 +222,7 @@ def _escribir_pestaña(ws, titulo, inmuebles, cambios, tab):
         }
     })
 
-    # Filtros en encabezados (limpiar existente primero)
+    # Filtros
     requests.append({"clearBasicFilter": {"sheetId": ws_id}})
     requests.append({
         "setBasicFilter": {
@@ -209,7 +234,6 @@ def _escribir_pestaña(ws, titulo, inmuebles, cambios, tab):
 
     # Ejecutar todo
     if requests:
-        # Google limita a 100 requests por batch, dividir si necesario
         for chunk_start in range(0, len(requests), 100):
             chunk = requests[chunk_start:chunk_start+100]
             ws.spreadsheet.batch_update({"requests": chunk})
