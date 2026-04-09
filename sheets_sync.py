@@ -27,6 +27,7 @@ COLOR_MANIF   = {"red":0.95, "green":0.95, "blue":0.95}   # F2F2F2
 COLOR_SUBASTA = {"red":1.0,  "green":0.95, "blue":0.80}   # FFF2CC
 COLOR_BLANCO  = {"red":1.0,  "green":1.0,  "blue":1.0}
 COLOR_CAMBIO  = {"red":1.0,  "green":0.85, "blue":0.85}  # rojo claro para cambios
+COLOR_VENDIDO = {"red":0.6,  "green":0.0,  "blue":0.4}   # magenta oscuro
 
 COLS = ["NOMBRE","DIRECCION","TIPO",
         "ESTADO CRONOGRAMA","ETAPA ACTUAL","PLAZO","CLIENTE","LINK",
@@ -63,6 +64,8 @@ def get_client():
 
 def color_fila(estado_crono, estado_api):
     cod = (estado_api or "").upper()
+    if "VENDIDO" in cod:
+        return COLOR_VENDIDO
     if estado_crono == "Manifestacion Abierta":
         return COLOR_MANIF
     if "SUBASTA" in cod or "PROXIMO" in cod:
@@ -194,7 +197,10 @@ def _escribir_pestaña(ws, titulo, inmuebles, cambios, tab):
     for i, item in enumerate(inmuebles):
         fila_idx = i + 2
         pid = item.get("_id", "")
+        estado_api = (item.get("estado_api","") or "").upper()
+        es_vendido = "VENDIDO" in estado_api
         bg = color_fila(item.get("estado_crono",""), item.get("estado_api",""))
+        fg = COLOR_BLANCO if es_vendido else None
 
         for j, campo in enumerate(CAMPOS):
             # Rojo solo en columnas auto-actualizables con cambio
@@ -204,7 +210,7 @@ def _escribir_pestaña(ws, titulo, inmuebles, cambios, tab):
             else:
                 cell_bg = bg
             requests.append(_formato_celdas(ws_id, fila_idx, j, fila_idx+1, j+1,
-                                             cell_bg, None, False, 10))
+                                             cell_bg, fg, False, 10))
 
     # Wrap text en columna LINK
     requests.append({
@@ -260,6 +266,7 @@ def _escribir_leyenda(ws):
         ["Proximo Subasta"],
         ["Con cronograma - En proceso"],
         ["Manifestacion Abierta"],
+        ["Vendido"],
     ]
     ws.update(filas)
     ws_id = ws.id
@@ -268,6 +275,7 @@ def _escribir_leyenda(ws):
         _formato_celdas(ws_id, 1, 0, 2, 1, COLOR_SUBASTA, None, False, 10),
         _formato_celdas(ws_id, 2, 0, 3, 1, COLOR_CRONO, None, False, 10),
         _formato_celdas(ws_id, 3, 0, 4, 1, COLOR_MANIF, None, False, 10),
+        _formato_celdas(ws_id, 4, 0, 5, 1, COLOR_VENDIDO, COLOR_BLANCO, False, 10),
         {"updateDimensionProperties": {
             "range": {"sheetId": ws_id, "dimension": "COLUMNS", "startIndex": 0, "endIndex": 1},
             "properties": {"pixelSize": 350}, "fields": "pixelSize"

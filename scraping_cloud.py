@@ -280,6 +280,10 @@ def procesar(props_api, detalles):
         estado = p.get("state") or {}
         estado_cod = estado.get("code","") if isinstance(estado, dict) else ""
 
+        etapa = det.get("etapa_actual","")
+        if estado_cod.upper() == "VENDIDO":
+            etapa = "VENDIDO"
+
         resultado.append({
             "_id": pid,
             "nombre":       det.get("nombre") or det.get("barrio") or p.get("reference",""),
@@ -288,7 +292,7 @@ def procesar(props_api, detalles):
             "area_m2":      p.get("built_area") or p.get("lot_area") or "",
             "valor":        formatear_precio(p.get("base_sale_price") or p.get("commercial_appraisal")),
             "estado_crono": det.get("estado_crono",""),
-            "etapa_actual": det.get("etapa_actual",""),
+            "etapa_actual": etapa,
             "plazo":        det.get("plazo","X"),
             "estado_api":   estado_cod,
             "link":         construir_url(p),

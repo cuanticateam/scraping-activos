@@ -553,6 +553,10 @@ def procesar_propiedades(props_api, detalles_scrape):
         estado_cod = estado_api.get("code","") if isinstance(estado_api, dict) else ""
         tipo_id = prop.get("property_type_id")
 
+        etapa = det.get("etapa_actual","")
+        if estado_cod.upper() == "VENDIDO":
+            etapa = "VENDIDO"
+
         resultado.append({
             "_id":          pid,
             "nombre":       det.get("nombre") or det.get("barrio") or prop.get("reference",""),
@@ -561,7 +565,7 @@ def procesar_propiedades(props_api, detalles_scrape):
             "area_m2":      prop.get("built_area") or prop.get("lot_area") or "",
             "valor":        formatear_precio(prop.get("base_sale_price") or prop.get("commercial_appraisal")),
             "estado_crono": det.get("estado_crono",""),
-            "etapa_actual": det.get("etapa_actual",""),
+            "etapa_actual": etapa,
             "plazo":        det.get("plazo","X"),
             "estado_api":   estado_cod,
             "link":         construir_url(prop),

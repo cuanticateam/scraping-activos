@@ -108,8 +108,8 @@
     "plazo": "X"
   },
   "med:28808": {
-    "nombre": "Sin nombre",
-    "direccion": "",
+    "nombre": "Comercial",
+    "direccion": "Carrera 48 # 15 sur – 45",
     "tipo": "Local Comercial",
     "valor": "$ 2.826.132.634",
     "estado_crono": "Manifestacion Abierta",
@@ -185,7 +185,7 @@
     "tipo": "Oficina",
     "valor": "$ 790.294.944",
     "estado_crono": "Con cronograma",
-    "etapa_actual": "FINALIZADO",
+    "etapa_actual": "VENDIDO",
     "plazo": "X"
   },
   "med:354": {
@@ -194,7 +194,7 @@
     "tipo": "Local Comercial",
     "valor": "$ 731.052.000",
     "estado_crono": "Con cronograma",
-    "etapa_actual": "FINALIZADO",
+    "etapa_actual": "VENDIDO",
     "plazo": "X"
   },
   "med:46": {
@@ -203,7 +203,7 @@
     "tipo": "Apartamento",
     "valor": "$ 251.461.847",
     "estado_crono": "Con cronograma",
-    "etapa_actual": "FINALIZADO",
+    "etapa_actual": "VENDIDO",
     "plazo": "X"
   },
   "med:341": {
@@ -212,7 +212,7 @@
     "tipo": "Casa",
     "valor": "$ 424.630.146",
     "estado_crono": "Con cronograma",
-    "etapa_actual": "FINALIZADO",
+    "etapa_actual": "VENDIDO",
     "plazo": "X"
   },
   "med:14": {
@@ -221,7 +221,7 @@
     "tipo": "Apartamento",
     "valor": "$ 1.354.494.445",
     "estado_crono": "Manifestacion Abierta",
-    "etapa_actual": "",
+    "etapa_actual": "VENDIDO",
     "plazo": "X"
   },
   "med:16": {
@@ -230,12 +230,12 @@
     "tipo": "Lote",
     "valor": "$ 1.523.558.400",
     "estado_crono": "Con cronograma",
-    "etapa_actual": "FINALIZADO",
+    "etapa_actual": "VENDIDO",
     "plazo": "X"
   },
   "ant:11012": {
     "nombre": "Sin nombre",
-    "direccion": "",
+    "direccion": "Naranjal",
     "tipo": "Finca",
     "valor": "$ 206.420.766",
     "estado_crono": "Manifestacion Abierta",
@@ -248,7 +248,7 @@
     "tipo": "Finca",
     "valor": "$ 5.772.765.048",
     "estado_crono": "Con cronograma",
-    "etapa_actual": "FINALIZADO",
+    "etapa_actual": "VENDIDO",
     "plazo": "X"
   }
 }
