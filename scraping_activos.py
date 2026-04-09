@@ -296,7 +296,7 @@ def extraer_cronograma(lineas):
 # 3. DETECCION DE CAMBIOS
 # ═══════════════════════════════════════════════════════════════════════════════
 
-CAMPOS_COMPARAR = ["nombre","direccion","tipo","valor","estado_crono","etapa_actual","plazo"]
+CAMPOS_COMPARAR = ["valor","estado_crono","etapa_actual","plazo"]
 
 def cargar_datos_anteriores():
     if os.path.exists(ARCHIVO_DATOS_PREV):

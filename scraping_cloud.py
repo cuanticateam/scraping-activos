@@ -304,7 +304,7 @@ def procesar(props_api, detalles):
 # 4. DETECCION DE CAMBIOS + NUEVOS + ELIMINADOS
 # ═══════════════════════════════════════════════════════════════════════════════
 
-CAMPOS = ["nombre","direccion","tipo","valor","estado_crono","etapa_actual","plazo"]
+CAMPOS = ["valor","estado_crono","etapa_actual","plazo"]
 
 def cargar_json(path):
     if os.path.exists(path):
