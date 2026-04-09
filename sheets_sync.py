@@ -8,7 +8,7 @@ Columnas manuales (preserva ediciones): NOMBRE, DIRECCION, TIPO, CLIENTE, LINK, 
 """
 
 import json, os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
@@ -285,7 +285,8 @@ def _escribir_leyenda(ws):
 
 
 def _escribir_info(ws, n_med, n_ant):
-    ahora = datetime.now().strftime("%Y-%m-%d %H:%M")
+    COL = timezone(timedelta(hours=-5))
+    ahora = datetime.now(COL).strftime("%Y-%m-%d %H:%M")
     filas = [
         ["Ultima actualizacion", ahora],
         ["Medellin", f"{n_med} inmuebles"],

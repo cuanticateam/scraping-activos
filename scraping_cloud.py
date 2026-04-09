@@ -6,7 +6,9 @@ Detecta cambios, inmuebles nuevos/eliminados y envia alerta por email.
 """
 
 import urllib.request, urllib.parse, json, re, os, smtplib, time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+
+COL_TZ = timezone(timedelta(hours=-5))
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from playwright.sync_api import sync_playwright
@@ -320,8 +322,8 @@ def guardar_json(path, data):
 def detectar_cambios(inmuebles, tab):
     anteriores = cargar_json(DATOS_FILE)
     registro = cargar_json(CAMBIOS_FILE)
-    ahora = datetime.now().isoformat()
-    limite = (datetime.now() - timedelta(days=DIAS_ROJO)).isoformat()
+    ahora = datetime.now(COL_TZ).isoformat()
+    limite = (datetime.now(COL_TZ) - timedelta(days=DIAS_ROJO)).isoformat()
     resumen = []
     cambios_ahora = {}
 
@@ -404,7 +406,7 @@ def enviar_email(resumen):
             if c["tab"] not in tabs_orden:
                 tabs_orden.append(c["tab"])
 
-        fecha = datetime.now().strftime("%d/%m/%Y %H:%M")
+        fecha = datetime.now(COL_TZ).strftime("%d/%m/%Y %H:%M")
 
         partes = []
         if nuevos: partes.append(f"{len(nuevos)} nuevos")
