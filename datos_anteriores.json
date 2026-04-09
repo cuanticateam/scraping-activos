@@ -9,8 +9,8 @@
     "plazo": "08/04"
   },
   "med:123": {
-    "nombre": "Meridian",
-    "direccion": "Patio Bonito, Medellín",
+    "nombre": "Sin nombre",
+    "direccion": "",
     "tipo": "Oficina",
     "valor": "$ 2.255.667.705",
     "estado_crono": "Manifestacion Abierta",
@@ -50,8 +50,8 @@
     "tipo": "Apartamento",
     "valor": "$ 518.945.477",
     "estado_crono": "Con cronograma",
-    "etapa_actual": "VALIDACIÓN Y CONFIRMACIÓN DE RECAUDO",
-    "plazo": "07/04"
+    "etapa_actual": "SUBASTA (APERTURA Y CIERRE)",
+    "plazo": "09/04"
   },
   "med:312": {
     "nombre": "El Poblado",
@@ -108,8 +108,8 @@
     "plazo": "X"
   },
   "med:28808": {
-    "nombre": "Comercial",
-    "direccion": "Carrera 48 # 15 sur – 45",
+    "nombre": "Sin nombre",
+    "direccion": "",
     "tipo": "Local Comercial",
     "valor": "$ 2.826.132.634",
     "estado_crono": "Manifestacion Abierta",

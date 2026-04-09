@@ -319,6 +319,7 @@ def detectar_cambios(inmuebles, tab):
     ahora = datetime.now().isoformat()
     limite = (datetime.now() - timedelta(days=DIAS_ROJO)).isoformat()
     resumen = []
+    cambios_ahora = {}
 
     ids_actuales = set()
 
@@ -338,6 +339,7 @@ def detectar_cambios(inmuebles, tab):
             })
             for campo in CAMPOS:
                 registro[f"{base}:{campo}"] = ahora
+                cambios_ahora[f"{base}:{campo}"] = True
 
         # Cambios en campos
         for campo in CAMPOS:
@@ -345,6 +347,7 @@ def detectar_cambios(inmuebles, tab):
             viejo = str(prev.get(campo,""))
             if prev and nuevo != viejo:
                 registro[f"{base}:{campo}"] = ahora
+                cambios_ahora[f"{base}:{campo}"] = True
                 resumen.append({
                     "tipo": "CAMBIO", "tab": tab.upper(),
                     "nombre": item.get("nombre","?"),
@@ -371,7 +374,7 @@ def detectar_cambios(inmuebles, tab):
 
     guardar_json(DATOS_FILE, anteriores)
     guardar_json(CAMBIOS_FILE, registro)
-    return {k:True for k,v in registro.items() if v >= limite}, resumen
+    return cambios_ahora, resumen
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

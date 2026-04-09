@@ -26,6 +26,7 @@ COLOR_CRONO   = {"red":0.84, "green":0.89, "blue":0.94}   # D6E4F0
 COLOR_MANIF   = {"red":0.95, "green":0.95, "blue":0.95}   # F2F2F2
 COLOR_SUBASTA = {"red":1.0,  "green":0.95, "blue":0.80}   # FFF2CC
 COLOR_BLANCO  = {"red":1.0,  "green":1.0,  "blue":1.0}
+COLOR_CAMBIO  = {"red":1.0,  "green":0.85, "blue":0.85}  # rojo claro para cambios
 
 COLS = ["NOMBRE","DIRECCION","TIPO",
         "ESTADO CRONOGRAMA","ETAPA ACTUAL","PLAZO","CLIENTE","LINK",
@@ -183,13 +184,27 @@ def _escribir_pestaña(ws, titulo, inmuebles, cambios, tab):
     requests.append(_formato_celdas(ws_id, 1, 0, 2, len(COLS),
                                      COLOR_HDR2, COLOR_BLANCO, True, 10))
 
+    # Mapa de campo CAMPOS -> campo en cambios
+    CAMPO_A_COMPARAR = {
+        "nombre":0, "direccion":1, "tipo":2, "estado_crono":3,
+        "etapa_actual":4, "plazo":5, "link":7, "area_m2":8, "valor":9,
+    }
+
     # Formato filas de datos
     for i, item in enumerate(inmuebles):
         fila_idx = i + 2
+        pid = item.get("_id", "")
         bg = color_fila(item.get("estado_crono",""), item.get("estado_api",""))
-        for j in range(len(COLS)):
+
+        for j, campo in enumerate(CAMPOS):
+            # Verificar si esta celda tiene un cambio reciente
+            clave_cambio = f"{tab}:{pid}:{campo}"
+            if campo != "_c" and clave_cambio in cambios:
+                cell_bg = COLOR_CAMBIO
+            else:
+                cell_bg = bg
             requests.append(_formato_celdas(ws_id, fila_idx, j, fila_idx+1, j+1,
-                                             bg, None, False, 10))
+                                             cell_bg, None, False, 10))
 
     # Wrap text en columna LINK
     requests.append({

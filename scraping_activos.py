@@ -334,6 +334,7 @@ def detectar_cambios(inmuebles_nuevos, pestaña):
     limite     = (datetime.now() - timedelta(days=DIAS_ROJO)).isoformat()
 
     resumen = []
+    cambios_ahora = {}  # solo cambios de esta ejecucion
 
     ids_actuales = set()
 
@@ -353,6 +354,7 @@ def detectar_cambios(inmuebles_nuevos, pestaña):
             })
             for campo in CAMPOS_COMPARAR:
                 registro[f"{clave_base}:{campo}"] = ahora
+                cambios_ahora[f"{clave_base}:{campo}"] = True
 
         # Cambios en campos
         for campo in CAMPOS_COMPARAR:
@@ -362,6 +364,7 @@ def detectar_cambios(inmuebles_nuevos, pestaña):
             if prev and val_nuevo != val_viejo:
                 clave = f"{clave_base}:{campo}"
                 registro[clave] = ahora
+                cambios_ahora[clave] = True
                 resumen.append({
                     "tipo": "CAMBIO", "tab": pestaña.upper(),
                     "nombre": item.get("nombre","?"),
@@ -388,16 +391,10 @@ def detectar_cambios(inmuebles_nuevos, pestaña):
         if registro[k] < limite:
             del registro[k]
 
-    # Armar dict de cambios activos para el Excel
-    cambios_activos = {}
-    for k, ts in registro.items():
-        if ts >= limite:
-            cambios_activos[k] = True
-
     guardar_datos(anteriores)
     guardar_cambios(registro)
 
-    return cambios_activos, resumen
+    return cambios_ahora, resumen
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
