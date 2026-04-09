@@ -197,9 +197,9 @@ def _escribir_pestaña(ws, titulo, inmuebles, cambios, tab):
         bg = color_fila(item.get("estado_crono",""), item.get("estado_api",""))
 
         for j, campo in enumerate(CAMPOS):
-            # Verificar si esta celda tiene un cambio reciente
+            # Rojo solo en columnas auto-actualizables con cambio
             clave_cambio = f"{tab}:{pid}:{campo}"
-            if campo != "_c" and clave_cambio in cambios:
+            if campo in AUTO_CAMPOS and clave_cambio in cambios:
                 cell_bg = COLOR_CAMBIO
             else:
                 cell_bg = bg
