@@ -1,0 +1,44 @@
+name: Monitor de Correos
+
+on:
+  schedule:
+    # 3 ejecuciones diarias (hora Colombia UTC-5)
+    - cron: '0 13 * * *'    #  8:00 AM COL
+    - cron: '0 17 * * *'    # 12:00 PM COL
+    - cron: '0 23 * * *'    #  6:00 PM COL
+  workflow_dispatch:         # Boton manual desde GitHub
+
+jobs:
+  email-monitor:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout codigo
+        uses: actions/checkout@v4
+
+      - name: Instalar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Instalar dependencias
+        run: pip install gspread google-auth
+
+      - name: Restaurar cache de estado
+        uses: actions/cache@v4
+        with:
+          path: email_last_check.json
+          key: email-monitor-${{ github.run_number }}
+          restore-keys: |
+            email-monitor-
+
+      - name: Preparar archivos si no hay cache
+        run: |
+          [ -f email_last_check.json ] || echo "{}" > email_last_check.json
+
+      - name: Ejecutar monitor de correos
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+          EMAIL_ACCOUNTS_CONFIG: ${{ secrets.EMAIL_ACCOUNTS_CONFIG }}
+          SPREADSHEET_ID_EMAILS: ${{ secrets.SPREADSHEET_ID_EMAILS }}
+        run: python email_monitor.py
