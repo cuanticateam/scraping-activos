@@ -127,14 +127,54 @@ def parse_date(date_str):
         return date_str[:10] if len(date_str) >= 10 else date_str, ""
 
 
+def detect_gmail_category(mail, msg_id):
+    """Detecta la bandeja de Gmail (Principal, Promociones, etc.) via X-GM-LABELS."""
+    try:
+        status, data = mail.fetch(msg_id, "(X-GM-LABELS)")
+        if status == "OK" and data[0]:
+            raw_labels = data[0][1] if isinstance(data[0], tuple) else data[0]
+            if isinstance(raw_labels, bytes):
+                raw_labels = raw_labels.decode("utf-8", errors="replace")
+            labels = str(raw_labels).upper()
+            if "CATEGORY_PROMOTIONS" in labels:
+                return "Promociones"
+            if "CATEGORY_SOCIAL" in labels:
+                return "Social"
+            if "CATEGORY_UPDATES" in labels:
+                return "Notificaciones"
+            if "CATEGORY_FORUMS" in labels:
+                return "Foros"
+        return "Principal"
+    except Exception:
+        return "Principal"
+
+
+def is_forwarded_from_hotmail(msg):
+    """Detecta si un correo fue reenviado desde bayrongil1@hotmail.com."""
+    # Revisar headers de reenvio
+    for header_name in ("X-Forwarded-To", "X-Forwarded-For",
+                        "X-MS-Exchange-Organization-AutoForwarded-From",
+                        "Resent-From"):
+        val = msg.get(header_name, "")
+        if "bayrongil" in val.lower():
+            return True
+    # Revisar cadena Received por mencion a bayrongil
+    received_headers = msg.get_all("Received") or []
+    for r in received_headers:
+        if "bayrongil" in r.lower():
+            return True
+    return False
+
+
 def fetch_emails(account, since_date):
     """
     Conecta via IMAP y obtiene correos desde since_date.
-    Retorna lista de dicts: {buzon, remitente, asunto, fecha, hora}
+    Retorna lista de dicts: {buzon, remitente, asunto, fecha, hora, bandeja}
     """
     imap_server = account["imap_server"]
     email_addr = account["email"]
     password = account["password"]
+    is_gmail = "gmail.com" in imap_server
     results = []
 
     try:
@@ -155,7 +195,7 @@ def fetch_emails(account, since_date):
 
         for msg_id in id_list:
             try:
-                # Fetch solo headers (mas rapido)
+                # Fetch headers
                 status, data = mail.fetch(msg_id, "(RFC822.HEADER)")
                 if status != "OK":
                     continue
@@ -168,18 +208,23 @@ def fetch_emails(account, since_date):
                 fecha_str = msg.get("Date", "")
                 fecha, hora = parse_date(fecha_str)
 
-                # Limpiar remitente: mostrar nombre + email
-                if "<" in remitente:
-                    # "Nombre <email>" -> mantener ambos
-                    pass
                 remitente = remitente.replace('"', '').replace("'", "")
 
+                # Detectar bandeja (solo Gmail)
+                bandeja = detect_gmail_category(mail, msg_id) if is_gmail else "Principal"
+
+                # Detectar reenvios de Hotmail
+                buzon = email_addr
+                if email_addr == "cuanticateamsas@gmail.com" and is_forwarded_from_hotmail(msg):
+                    buzon = "bayrongil1@hotmail.com"
+
                 results.append({
-                    "buzon": email_addr,
+                    "buzon": buzon,
                     "remitente": remitente,
                     "asunto": asunto,
                     "fecha": fecha,
                     "hora": hora,
+                    "bandeja": bandeja,
                 })
             except Exception as e:
                 print(f"    Error leyendo mensaje {msg_id}: {e}")
@@ -232,10 +277,11 @@ COLORES_BUZON = {
     "sandramija984@gmail.com":      {"red": 1.0, "green": 1.0, "blue": 0.85},
     "tecnologia.oxigenog@gmail.com":{"red": 0.85, "green": 1.0, "blue": 0.95},
     "management@bankdv.com":        {"red": 0.95, "green": 0.90, "blue": 0.90},
+    "bayrongil1@hotmail.com":        {"red": 0.90, "green": 0.95, "blue": 0.95},
 }
 
-COLS = ["BUZON", "REMITENTE", "ASUNTO", "FECHA", "HORA"]
-ANCHOS = [250, 300, 450, 110, 70]
+COLS = ["BUZON", "BANDEJA", "REMITENTE", "ASUNTO", "FECHA", "HORA"]
+ANCHOS = [250, 120, 300, 450, 110, 70]
 
 
 def _rango(sheet_id, r1, c1, r2, c2):
@@ -280,8 +326,8 @@ def sync_emails_to_sheet(all_emails):
         existing = ws.get_all_values()
         existing_keys = set()
         for row in existing[2:]:  # saltar titulo + encabezados
-            if len(row) >= 5:
-                existing_keys.add(f"{row[0]}|{row[1]}|{row[2]}|{row[3]}|{row[4]}")
+            if len(row) >= 6:
+                existing_keys.add(f"{row[0]}|{row[2]}|{row[3]}|{row[4]}|{row[5]}")
         # Filtrar duplicados
         nuevos = []
         for e in all_emails:
@@ -296,7 +342,7 @@ def sync_emails_to_sheet(all_emails):
         # Append al final
         filas = []
         for e in all_emails:
-            filas.append([e["buzon"], e["remitente"], e["asunto"], e["fecha"], e["hora"]])
+            filas.append([e["buzon"], e["bandeja"], e["remitente"], e["asunto"], e["fecha"], e["hora"]])
         start_row = len(existing) + 1
         ws.update(filas, f"A{start_row}", value_input_option="RAW")
         _aplicar_formato_filas(ws, start_row - 1, all_emails)
@@ -319,7 +365,7 @@ def sync_emails_to_sheet(all_emails):
     titulo = f"MONITOR DE CORREOS - {hoy}"
     filas = [[titulo] + [""] * (len(COLS) - 1), COLS]
     for e in all_emails:
-        filas.append([e["buzon"], e["remitente"], e["asunto"], e["fecha"], e["hora"]])
+        filas.append([e["buzon"], e["bandeja"], e["remitente"], e["asunto"], e["fecha"], e["hora"]])
 
     ws.update(filas, value_input_option="RAW")
 
