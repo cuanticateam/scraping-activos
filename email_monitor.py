@@ -232,6 +232,7 @@ COLORES_BUZON = {
     "sandramija984@gmail.com":      {"red": 1.0, "green": 1.0, "blue": 0.85},
     "tecnologia.oxigenog@gmail.com":{"red": 0.85, "green": 1.0, "blue": 0.95},
     "management@bankdv.com":        {"red": 0.95, "green": 0.90, "blue": 0.90},
+    "bayrongil1@hotmail.com":        {"red": 0.90, "green": 0.95, "blue": 0.95},
 }
 
 COLS = ["BUZON", "REMITENTE", "ASUNTO", "FECHA", "HORA"]
