@@ -16,6 +16,8 @@ from playwright.sync_api import sync_playwright
 API_BASE   = "https://dev.activosporcolombia.com/net/api"
 SITE_BASE  = "https://activosporcolombia.com"
 CITY_ID_MEDELLIN = 5001
+CITY_ID_BELLO    = 5088
+CITY_ID_PINTADA  = 5390
 DIAS_ROJO  = 2
 
 EMAIL_REMITENTE    = os.environ.get("EMAIL_REMITENTE", "")
@@ -54,6 +56,7 @@ def llamar_api(endpoint, params=None, reintentos=3):
 
 def obtener_propiedades(filtro):
     todos, pagina = [], 1
+    vistos = set()
     while True:
         params = {"query":"","page":pagina,"limit":50,"sort_by":"date_desc"}
         params.update(filtro)
@@ -61,7 +64,11 @@ def obtener_propiedades(filtro):
         data = resp["data"]
         props = data.get("properties", [])
         if not props: break
-        todos.extend(props)
+        for p in props:
+            pid = p["id"]
+            if pid not in vistos:
+                vistos.add(pid)
+                todos.append(p)
         if pagina >= data.get("total_pages", 1): break
         pagina += 1
     return todos
@@ -291,6 +298,7 @@ def procesar(props_api, detalles):
             "nombre":       det.get("nombre") or det.get("barrio") or p.get("reference",""),
             "direccion":    det.get("direccion",""),
             "tipo":         TIPOS.get(p.get("property_type_id"), ""),
+            "matricula":    p.get("matricula_number", ""),
             "area_m2":      p.get("built_area") or p.get("lot_area") or "",
             "valor":        formatear_precio(p.get("base_sale_price") or p.get("commercial_appraisal")),
             "estado_crono": det.get("estado_crono",""),
@@ -298,6 +306,7 @@ def procesar(props_api, detalles):
             "plazo":        det.get("plazo","X"),
             "estado_api":   estado_cod,
             "link":         construir_url(p),
+            "fmi":          p.get("matricula_number", ""),
         })
     return resultado
 
@@ -307,6 +316,8 @@ def procesar(props_api, detalles):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 CAMPOS = ["valor","estado_crono","etapa_actual","plazo"]
+CAMPOS_GUARDAR = ["nombre","direccion","tipo","matricula","area_m2",
+                  "valor","estado_crono","etapa_actual","plazo","link","fmi"]
 
 def cargar_json(path):
     if os.path.exists(path):
@@ -360,16 +371,25 @@ def detectar_cambios(inmuebles, tab):
                     "campo": campo, "antes": viejo, "ahora": nuevo,
                 })
 
-        anteriores[base] = {c: str(item.get(c,"")) for c in CAMPOS}
+        anteriores[base] = {c: str(item.get(c,"")) for c in CAMPOS_GUARDAR}
 
     # Inmuebles ELIMINADOS
     for clave in list(anteriores.keys()):
         if clave.startswith(f"{tab}:") and clave not in ids_actuales:
-            nombre_viejo = anteriores[clave].get("nombre", "?")
-            tipo_viejo = anteriores[clave].get("tipo", "")
+            datos_viejos = anteriores[clave]
             resumen.append({
                 "tipo": "ELIMINADO", "tab": tab.upper(),
-                "nombre": nombre_viejo, "tipo_inmueble": tipo_viejo,
+                "nombre": datos_viejos.get("nombre", "?"),
+                "tipo_inmueble": datos_viejos.get("tipo", ""),
+                "direccion": datos_viejos.get("direccion", ""),
+                "matricula": datos_viejos.get("matricula", ""),
+                "area_m2": datos_viejos.get("area_m2", ""),
+                "valor": datos_viejos.get("valor", ""),
+                "estado_crono": datos_viejos.get("estado_crono", ""),
+                "etapa_actual": datos_viejos.get("etapa_actual", ""),
+                "plazo": datos_viejos.get("plazo", ""),
+                "link": datos_viejos.get("link", ""),
+                "fmi": datos_viejos.get("fmi", ""),
             })
             del anteriores[clave]
 
@@ -435,7 +455,7 @@ def enviar_email(resumen):
             for tab in tabs_orden:
                 tab_nuevos = [c for c in nuevos if c["tab"] == tab]
                 if not tab_nuevos: continue
-                tab_nombre = "Medellin" if tab == "MED" else "Antioquia"
+                tab_nombre = {"MED":"Medellin","ANT":"Antioquia","BEL":"Bello","PIN":"La Pintada"}.get(tab, tab)
                 html += f'<h3 style="color:#2E7D32;">Nuevos - {tab_nombre} ({len(tab_nuevos)})</h3>'
                 html += f'<table style="{ESTILO_TABLA}">'
                 html += f'<tr><th style="{ESTILO_TH}">Inmueble</th>'
@@ -452,7 +472,7 @@ def enviar_email(resumen):
             for tab in tabs_orden:
                 tab_cambios = [c for c in cambios if c["tab"] == tab]
                 if not tab_cambios: continue
-                tab_nombre = "Medellin" if tab == "MED" else "Antioquia"
+                tab_nombre = {"MED":"Medellin","ANT":"Antioquia","BEL":"Bello","PIN":"La Pintada"}.get(tab, tab)
                 html += f'<h3 style="color:#1565C0;">Cambios - {tab_nombre} ({len(tab_cambios)})</h3>'
                 html += f'<table style="{ESTILO_TABLA}">'
                 html += f'<tr><th style="{ESTILO_TH}">Inmueble</th>'
@@ -472,16 +492,33 @@ def enviar_email(resumen):
             for tab in tabs_orden:
                 tab_elim = [c for c in eliminados if c["tab"] == tab]
                 if not tab_elim: continue
-                tab_nombre = "Medellin" if tab == "MED" else "Antioquia"
+                tab_nombre = {"MED":"Medellin","ANT":"Antioquia","BEL":"Bello","PIN":"La Pintada"}.get(tab, tab)
                 html += f'<h3 style="color:#C62828;">Eliminados - {tab_nombre} ({len(tab_elim)})</h3>'
-                html += f'<table style="{ESTILO_TABLA}">'
-                html += f'<tr><th style="{ESTILO_TH}">Inmueble</th>'
-                html += f'<th style="{ESTILO_TH}">Tipo</th></tr>'
-                for i, c in enumerate(tab_elim):
-                    td = ESTILO_TD_ALT if i % 2 else ESTILO_TD
-                    html += f'<tr><td style="{td}">{c["nombre"]}</td>'
-                    html += f'<td style="{td}">{c["tipo_inmueble"]}</td></tr>'
-                html += '</table>'
+                for c in tab_elim:
+                    link = c.get("link","")
+                    nombre_display = f'<a href="{link}">{c["nombre"]}</a>' if link else c["nombre"]
+                    html += f'<table style="{ESTILO_TABLA}">'
+                    html += f'<tr><th style="{ESTILO_TH}" colspan="2">{nombre_display}</th></tr>'
+                    campos_elim = [
+                        ("Tipo", c.get("tipo_inmueble","")),
+                        ("Direccion", c.get("direccion","")),
+                        ("Folio Matricula", c.get("matricula","")),
+                        ("FMI", c.get("fmi","")),
+                        ("Area m2", c.get("area_m2","")),
+                        ("Valor", c.get("valor","")),
+                        ("Estado Cronograma", c.get("estado_crono","")),
+                        ("Etapa Actual", c.get("etapa_actual","")),
+                        ("Plazo", c.get("plazo","")),
+                    ]
+                    for i, (label, val) in enumerate(campos_elim):
+                        if val:
+                            td = ESTILO_TD_ALT if i % 2 else ESTILO_TD
+                            html += f'<tr><td style="{td}font-weight:bold;width:160px;">{label}</td>'
+                            html += f'<td style="{td}">{val}</td></tr>'
+                    if link:
+                        html += f'<tr><td style="{ESTILO_TD}font-weight:bold;">Link</td>'
+                        html += f'<td style="{ESTILO_TD}"><a href="{link}">{link}</a></td></tr>'
+                    html += '</table><br>'
 
         html += """
         <p style="color:#999;font-size:12px;margin-top:20px;">
@@ -509,37 +546,51 @@ def enviar_email(resumen):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 if __name__ == "__main__":
+    EXCLUIR_ANT = {CITY_ID_MEDELLIN, CITY_ID_BELLO, CITY_ID_PINTADA}
+
     print("="*55)
     print("  Scraping NUBE - activosporcolombia.com")
-    print("  Medellin + Antioquia (datos completos)")
+    print("  Medellin + Antioquia + Bello + La Pintada")
     print("="*55)
 
     # Descargar listas
-    print("\n[1/5] Descargando Medellin...")
+    print("\n[1/7] Descargando Medellin...")
     props_med = obtener_propiedades({"city_ids": CITY_ID_MEDELLIN})
     print(f"  {len(props_med)} propiedades")
 
-    print("\n[2/5] Descargando Antioquia (sin Medellin)...")
+    print("\n[2/7] Descargando Bello...")
+    props_bel = obtener_propiedades({"city_ids": CITY_ID_BELLO})
+    print(f"  {len(props_bel)} propiedades")
+
+    print("\n[3/7] Descargando La Pintada...")
+    props_pin = obtener_propiedades({"city_ids": CITY_ID_PINTADA})
+    print(f"  {len(props_pin)} propiedades")
+
+    print("\n[4/7] Descargando Antioquia (sin Medellin/Bello/Pintada)...")
     todas = obtener_propiedades({})
-    props_ant = [p for p in todas if p.get("city_id") and 5000<=p["city_id"]<=5999 and p["city_id"]!=CITY_ID_MEDELLIN]
+    props_ant = [p for p in todas if p.get("city_id") and 5000<=p["city_id"]<=5999 and p["city_id"] not in EXCLUIR_ANT]
     print(f"  {len(props_ant)} propiedades")
 
     # Scrape detalles con Playwright
-    print("\n[3/5] Visitando paginas de Medellin...")
+    print("\n[5/7] Visitando paginas...")
     det_med = scrape_detalles(props_med, "MED ")
-
-    print("\n[4/5] Visitando paginas de Antioquia...")
+    det_bel = scrape_detalles(props_bel, "BEL ")
+    det_pin = scrape_detalles(props_pin, "PIN ")
     det_ant = scrape_detalles(props_ant, "ANT ")
 
     # Procesar
     med = procesar(props_med, det_med)
+    bel = procesar(props_bel, det_bel)
+    pin = procesar(props_pin, det_pin)
     ant = procesar(props_ant, det_ant)
 
     # Detectar cambios
-    print("\n[5/5] Detectando cambios y actualizando Google Sheets...")
+    print("\n[6/7] Detectando cambios...")
     cm, rm = detectar_cambios(med, "med")
+    cb, rb = detectar_cambios(bel, "bel")
+    cp, rp = detectar_cambios(pin, "pin")
     ca, ra = detectar_cambios(ant, "ant")
-    todos_cambios = rm + ra
+    todos_cambios = rm + rb + rp + ra
 
     if todos_cambios:
         print(f"\n  *** {len(todos_cambios)} ALERTAS ***")
@@ -553,11 +604,14 @@ if __name__ == "__main__":
         print("  Sin cambios")
 
     # Google Sheets
+    print("\n[7/7] Actualizando Google Sheets...")
     from sheets_sync import sync_to_sheets
-    sync_to_sheets(med, ant, cm, ca)
+    sync_to_sheets(med, ant, cm, ca,
+                   inmuebles_bello=bel, inmuebles_pintada=pin,
+                   cambios_bello=cb, cambios_pintada=cp)
 
     # Email
     if todos_cambios:
         enviar_email(todos_cambios)
 
-    print(f"\nListo: {len(med)} Medellin + {len(ant)} Antioquia")
+    print(f"\nListo: {len(med)} Med + {len(bel)} Bello + {len(pin)} Pintada + {len(ant)} Antioquia")

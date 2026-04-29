@@ -29,13 +29,13 @@ COLOR_BLANCO  = {"red":1.0,  "green":1.0,  "blue":1.0}
 COLOR_CAMBIO  = {"red":1.0,  "green":0.85, "blue":0.85}  # rojo claro para cambios
 COLOR_VENDIDO = {"red":0.6,  "green":0.0,  "blue":0.4}   # magenta oscuro
 
-COLS = ["NOMBRE","DIRECCION","TIPO",
+COLS = ["NOMBRE","DIRECCION","TIPO","FOLIO MATRICULA",
         "ESTADO CRONOGRAMA","ETAPA ACTUAL","PLAZO","CLIENTE","LINK",
-        "AREA m2","VALOR"]
-CAMPOS = ["nombre","direccion","tipo",
+        "AREA m2","VALOR","FMI"]
+CAMPOS = ["nombre","direccion","tipo","matricula",
           "estado_crono","etapa_actual","plazo","_c","link",
-          "area_m2","valor"]
-ANCHOS = [220,280,130,160,250,80,100,400,80,150]
+          "area_m2","valor","fmi"]
+ANCHOS = [220,280,130,140,160,250,80,100,400,80,150,140]
 
 # Columnas que el script actualiza automaticamente (indice en CAMPOS)
 AUTO_CAMPOS = {"estado_crono", "etapa_actual", "plazo", "valor"}
@@ -73,7 +73,9 @@ def color_fila(estado_crono, estado_api):
     return COLOR_CRONO
 
 
-def sync_to_sheets(inmuebles_med, inmuebles_ant, cambios_med, cambios_ant):
+def sync_to_sheets(inmuebles_med, inmuebles_ant, cambios_med, cambios_ant,
+                   inmuebles_bello=None, inmuebles_pintada=None,
+                   cambios_bello=None, cambios_pintada=None):
     """
     Escribe los datos en Google Sheets con formato y colores.
     Preserva ediciones manuales en columnas no-automaticas.
@@ -104,11 +106,26 @@ def sync_to_sheets(inmuebles_med, inmuebles_ant, cambios_med, cambios_ant):
     _escribir_pestaña(ws_ant, "LISTADO DE VENTA MASIVA - ANTIOQUIA (sin Medellin)",
                       inmuebles_ant, cambios_ant, "ant")
 
+    # Bello y La Pintada
+    if inmuebles_bello is not None:
+        ws_bel = _obtener_hoja(sh, hojas_existentes, "Bello", len(inmuebles_bello))
+        print("  Escribiendo Bello...")
+        _escribir_pestaña(ws_bel, "LISTADO DE VENTA MASIVA - BELLO",
+                          inmuebles_bello, cambios_bello or {}, "bel")
+
+    if inmuebles_pintada is not None:
+        ws_pin = _obtener_hoja(sh, hojas_existentes, "La Pintada", len(inmuebles_pintada))
+        print("  Escribiendo La Pintada...")
+        _escribir_pestaña(ws_pin, "LISTADO DE VENTA MASIVA - LA PINTADA",
+                          inmuebles_pintada, cambios_pintada or {}, "pin")
+
     print("  Escribiendo Leyenda e Info...")
     ws_ley.clear()
     _escribir_leyenda(ws_ley)
+    n_bel = len(inmuebles_bello) if inmuebles_bello else 0
+    n_pin = len(inmuebles_pintada) if inmuebles_pintada else 0
     ws_inf.clear()
-    _escribir_info(ws_inf, len(inmuebles_med), len(inmuebles_ant))
+    _escribir_info(ws_inf, len(inmuebles_med), len(inmuebles_ant), n_bel, n_pin)
 
     print(f"  Google Sheets actualizado: {sh.url}")
 
@@ -284,13 +301,15 @@ def _escribir_leyenda(ws):
     ws.spreadsheet.batch_update({"requests": reqs})
 
 
-def _escribir_info(ws, n_med, n_ant):
+def _escribir_info(ws, n_med, n_ant, n_bel=0, n_pin=0):
     COL = timezone(timedelta(hours=-5))
     ahora = datetime.now(COL).strftime("%Y-%m-%d %H:%M")
     filas = [
         ["Ultima actualizacion", ahora],
         ["Medellin", f"{n_med} inmuebles"],
         ["Antioquia (sin Med.)", f"{n_ant} inmuebles"],
+        ["Bello", f"{n_bel} inmuebles"],
+        ["La Pintada", f"{n_pin} inmuebles"],
         ["Fuente", "activosporcolombia.com"],
     ]
     ws.update(filas)

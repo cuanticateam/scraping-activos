@@ -2,17 +2,11 @@ name: Scraping Activos Colombia
 
 on:
   schedule:
-    # 10 ejecuciones de 8am a 7pm hora Colombia (UTC-5)
+    # Cada 4 horas en horario laboral Colombia (UTC-5)
     - cron: '0 13 * * *'    #  8:00 AM
-    - cron: '15 14 * * *'   #  9:15 AM
-    - cron: '30 15 * * *'   # 10:30 AM
-    - cron: '45 16 * * *'   # 11:45 AM
-    - cron: '0 18 * * *'    #  1:00 PM
-    - cron: '15 19 * * *'   #  2:15 PM
-    - cron: '30 20 * * *'   #  3:30 PM
-    - cron: '45 21 * * *'   #  4:45 PM
-    - cron: '0 23 * * *'    #  6:00 PM
-    - cron: '0 0 * * *'     #  7:00 PM
+    - cron: '0 17 * * *'    # 12:00 PM
+    - cron: '0 21 * * *'    #  4:00 PM
+    - cron: '0 1 * * *'     #  8:00 PM
   workflow_dispatch:         # Boton manual desde GitHub
 
 jobs:

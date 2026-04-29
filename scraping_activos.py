@@ -20,6 +20,8 @@ ARCHIVO_DATOS_PREV = os.path.join(CARPETA_SCRIPT, "datos_anteriores.json")
 ARCHIVO_CAMBIOS    = os.path.join(CARPETA_SCRIPT, "registro_cambios.json")
 
 CITY_ID_MEDELLIN   = 5001
+CITY_ID_BELLO      = 5088
+CITY_ID_PINTADA    = 5390
 DEPT_ID_ANTIOQUIA  = 5
 API_BASE           = "https://dev.activosporcolombia.com/net/api"
 SITE_BASE          = "https://activosporcolombia.com"
@@ -63,6 +65,7 @@ def llamar_api(endpoint, params=None, reintentos=3):
 def obtener_propiedades(filtro_params):
     """Descarga todas las paginas de una busqueda."""
     todos, pagina = [], 1
+    vistos = set()
     while True:
         params = {"query":"","page":pagina,"limit":50,"sort_by":"date_desc"}
         params.update(filtro_params)
@@ -71,7 +74,11 @@ def obtener_propiedades(filtro_params):
         props = data.get("properties", [])
         if not props:
             break
-        todos.extend(props)
+        for p in props:
+            pid = p["id"]
+            if pid not in vistos:
+                vistos.add(pid)
+                todos.append(p)
         if pagina >= data.get("total_pages", 1):
             break
         pagina += 1
@@ -82,13 +89,15 @@ def obtener_medellin():
     return obtener_propiedades({"city_ids": CITY_ID_MEDELLIN})
 
 
+EXCLUIR_ANT = {CITY_ID_MEDELLIN, CITY_ID_BELLO, CITY_ID_PINTADA}
+
 def obtener_antioquia_sin_medellin():
     # city_id de Antioquia en codigo DANE van de 5000 a 5999
     todas = obtener_propiedades({})  # todas las propiedades
     return [
         p for p in todas
         if p.get("city_id") and 5000 <= p["city_id"] <= 5999
-        and p["city_id"] != CITY_ID_MEDELLIN
+        and p["city_id"] not in EXCLUIR_ANT
     ]
 
 
@@ -297,6 +306,8 @@ def extraer_cronograma(lineas):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 CAMPOS_COMPARAR = ["valor","estado_crono","etapa_actual","plazo"]
+CAMPOS_GUARDAR = ["nombre","direccion","tipo","matricula","area_m2",
+                  "valor","estado_crono","etapa_actual","plazo","link","fmi"]
 
 def cargar_datos_anteriores():
     if os.path.exists(ARCHIVO_DATOS_PREV):
@@ -372,17 +383,26 @@ def detectar_cambios(inmuebles_nuevos, pestaña):
                 })
 
         # Guardar dato actual
-        datos_item = {c: str(item.get(c,"")) for c in CAMPOS_COMPARAR}
+        datos_item = {c: str(item.get(c,"")) for c in CAMPOS_GUARDAR}
         anteriores[clave_base] = datos_item
 
     # Detectar inmuebles ELIMINADOS
     for clave_vieja in list(anteriores.keys()):
         if clave_vieja.startswith(f"{pestaña}:") and clave_vieja not in ids_actuales:
-            nombre_viejo = anteriores[clave_vieja].get("nombre", "?")
-            tipo_viejo = anteriores[clave_vieja].get("tipo", "")
+            datos_viejos = anteriores[clave_vieja]
             resumen.append({
                 "tipo": "ELIMINADO", "tab": pestaña.upper(),
-                "nombre": nombre_viejo, "tipo_inmueble": tipo_viejo,
+                "nombre": datos_viejos.get("nombre", "?"),
+                "tipo_inmueble": datos_viejos.get("tipo", ""),
+                "direccion": datos_viejos.get("direccion", ""),
+                "matricula": datos_viejos.get("matricula", ""),
+                "area_m2": datos_viejos.get("area_m2", ""),
+                "valor": datos_viejos.get("valor", ""),
+                "estado_crono": datos_viejos.get("estado_crono", ""),
+                "etapa_actual": datos_viejos.get("etapa_actual", ""),
+                "plazo": datos_viejos.get("plazo", ""),
+                "link": datos_viejos.get("link", ""),
+                "fmi": datos_viejos.get("fmi", ""),
             })
             del anteriores[clave_vieja]
 
@@ -455,7 +475,7 @@ def enviar_email(resumen_cambios):
                 tab_nuevos = [c for c in nuevos if c["tab"] == tab]
                 if not tab_nuevos:
                     continue
-                tab_nombre = "Medellin" if tab == "MED" else "Antioquia"
+                tab_nombre = {"MED":"Medellin","ANT":"Antioquia","BEL":"Bello","PIN":"La Pintada"}.get(tab, tab)
                 html += f'<h3 style="color:#2E7D32;">Nuevos - {tab_nombre} ({len(tab_nuevos)})</h3>'
                 html += f'<table style="{ESTILO_TABLA}">'
                 html += f'<tr><th style="{ESTILO_TH}">Inmueble</th>'
@@ -474,7 +494,7 @@ def enviar_email(resumen_cambios):
                 tab_cambios = [c for c in cambios if c["tab"] == tab]
                 if not tab_cambios:
                     continue
-                tab_nombre = "Medellin" if tab == "MED" else "Antioquia"
+                tab_nombre = {"MED":"Medellin","ANT":"Antioquia","BEL":"Bello","PIN":"La Pintada"}.get(tab, tab)
                 html += f'<h3 style="color:#1565C0;">Cambios - {tab_nombre} ({len(tab_cambios)})</h3>'
                 html += f'<table style="{ESTILO_TABLA}">'
                 html += f'<tr><th style="{ESTILO_TH}">Inmueble</th>'
@@ -496,16 +516,33 @@ def enviar_email(resumen_cambios):
                 tab_elim = [c for c in eliminados if c["tab"] == tab]
                 if not tab_elim:
                     continue
-                tab_nombre = "Medellin" if tab == "MED" else "Antioquia"
+                tab_nombre = {"MED":"Medellin","ANT":"Antioquia","BEL":"Bello","PIN":"La Pintada"}.get(tab, tab)
                 html += f'<h3 style="color:#C62828;">Eliminados - {tab_nombre} ({len(tab_elim)})</h3>'
-                html += f'<table style="{ESTILO_TABLA}">'
-                html += f'<tr><th style="{ESTILO_TH}">Inmueble</th>'
-                html += f'<th style="{ESTILO_TH}">Tipo</th></tr>'
-                for i, c in enumerate(tab_elim):
-                    td = ESTILO_TD_ALT if i % 2 else ESTILO_TD
-                    html += f'<tr><td style="{td}">{c["nombre"]}</td>'
-                    html += f'<td style="{td}">{c["tipo_inmueble"]}</td></tr>'
-                html += '</table>'
+                for c in tab_elim:
+                    link = c.get("link","")
+                    nombre_display = f'<a href="{link}">{c["nombre"]}</a>' if link else c["nombre"]
+                    html += f'<table style="{ESTILO_TABLA}">'
+                    html += f'<tr><th style="{ESTILO_TH}" colspan="2">{nombre_display}</th></tr>'
+                    campos_elim = [
+                        ("Tipo", c.get("tipo_inmueble","")),
+                        ("Direccion", c.get("direccion","")),
+                        ("Folio Matricula", c.get("matricula","")),
+                        ("FMI", c.get("fmi","")),
+                        ("Area m2", c.get("area_m2","")),
+                        ("Valor", c.get("valor","")),
+                        ("Estado Cronograma", c.get("estado_crono","")),
+                        ("Etapa Actual", c.get("etapa_actual","")),
+                        ("Plazo", c.get("plazo","")),
+                    ]
+                    for i, (label, val) in enumerate(campos_elim):
+                        if val:
+                            td = ESTILO_TD_ALT if i % 2 else ESTILO_TD
+                            html += f'<tr><td style="{td}font-weight:bold;width:160px;">{label}</td>'
+                            html += f'<td style="{td}">{val}</td></tr>'
+                    if link:
+                        html += f'<tr><td style="{ESTILO_TD}font-weight:bold;">Link</td>'
+                        html += f'<td style="{ESTILO_TD}"><a href="{link}">{link}</a></td></tr>'
+                    html += '</table><br>'
 
         html += """
         <p style="color:#999;font-size:12px;margin-top:20px;">
@@ -562,6 +599,7 @@ def procesar_propiedades(props_api, detalles_scrape):
             "nombre":       det.get("nombre") or det.get("barrio") or prop.get("reference",""),
             "direccion":    det.get("direccion",""),
             "tipo":         TIPOS.get(tipo_id, f"Tipo {tipo_id}" if tipo_id else ""),
+            "matricula":    prop.get("matricula_number", ""),
             "area_m2":      prop.get("built_area") or prop.get("lot_area") or "",
             "valor":        formatear_precio(prop.get("base_sale_price") or prop.get("commercial_appraisal")),
             "estado_crono": det.get("estado_crono",""),
@@ -569,6 +607,7 @@ def procesar_propiedades(props_api, detalles_scrape):
             "plazo":        det.get("plazo","X"),
             "estado_api":   estado_cod,
             "link":         construir_url(prop),
+            "fmi":          prop.get("matricula_number", ""),
         })
     return resultado
 
@@ -580,34 +619,46 @@ def procesar_propiedades(props_api, detalles_scrape):
 if __name__ == "__main__":
     print("=" * 55)
     print("  Scraping activosporcolombia.com")
-    print("  Medellin + Antioquia")
+    print("  Medellin + Bello + La Pintada + Antioquia")
     print("=" * 55)
 
     # ── Descargar listas ──
-    print("\n[1/5] Descargando propiedades de Medellin...")
+    print("\n[1/7] Descargando propiedades de Medellin...")
     props_med = obtener_medellin()
     print(f"  {len(props_med)} propiedades")
 
-    print("\n[2/5] Descargando propiedades de Antioquia (sin Medellin)...")
+    print("\n[2/7] Descargando propiedades de Bello...")
+    props_bel = obtener_propiedades({"city_ids": CITY_ID_BELLO})
+    print(f"  {len(props_bel)} propiedades")
+
+    print("\n[3/7] Descargando propiedades de La Pintada...")
+    props_pin = obtener_propiedades({"city_ids": CITY_ID_PINTADA})
+    print(f"  {len(props_pin)} propiedades")
+
+    print("\n[4/7] Descargando propiedades de Antioquia (sin Med/Bello/Pintada)...")
     props_ant = obtener_antioquia_sin_medellin()
     print(f"  {len(props_ant)} propiedades")
 
     # ── Scrape detalles ──
-    print("\n[3/5] Visitando paginas de Medellin...")
+    print("\n[5/7] Visitando paginas...")
     det_med = scrape_detalles(props_med, "MED ")
-
-    print("\n[4/5] Visitando paginas de Antioquia...")
+    det_bel = scrape_detalles(props_bel, "BEL ")
+    det_pin = scrape_detalles(props_pin, "PIN ")
     det_ant = scrape_detalles(props_ant, "ANT ")
 
     # ── Procesar ──
     inmuebles_med = procesar_propiedades(props_med, det_med)
+    inmuebles_bel = procesar_propiedades(props_bel, det_bel)
+    inmuebles_pin = procesar_propiedades(props_pin, det_pin)
     inmuebles_ant = procesar_propiedades(props_ant, det_ant)
 
     # ── Detectar cambios ──
-    print("\n[5/5] Detectando cambios y actualizando Google Sheets...")
+    print("\n[6/7] Detectando cambios...")
     cambios_med, resumen_med = detectar_cambios(inmuebles_med, "med")
+    cambios_bel, resumen_bel = detectar_cambios(inmuebles_bel, "bel")
+    cambios_pin, resumen_pin = detectar_cambios(inmuebles_pin, "pin")
     cambios_ant, resumen_ant = detectar_cambios(inmuebles_ant, "ant")
-    todos_cambios = resumen_med + resumen_ant
+    todos_cambios = resumen_med + resumen_bel + resumen_pin + resumen_ant
 
     if todos_cambios:
         print(f"\n  *** {len(todos_cambios)} CAMBIOS DETECTADOS ***")
@@ -622,11 +673,14 @@ if __name__ == "__main__":
         print("  Sin cambios respecto a la ultima actualizacion")
 
     # ── Google Sheets ──
+    print("\n[7/7] Actualizando Google Sheets...")
     from sheets_sync import sync_to_sheets
-    sync_to_sheets(inmuebles_med, inmuebles_ant, cambios_med, cambios_ant)
+    sync_to_sheets(inmuebles_med, inmuebles_ant, cambios_med, cambios_ant,
+                   inmuebles_bello=inmuebles_bel, inmuebles_pintada=inmuebles_pin,
+                   cambios_bello=cambios_bel, cambios_pintada=cambios_pin)
 
     # ── Notificacion ──
     if todos_cambios:
         enviar_email(todos_cambios)
 
-    print(f"\nListo! {len(inmuebles_med)} Medellin + {len(inmuebles_ant)} Antioquia")
+    print(f"\nListo! {len(inmuebles_med)} Med + {len(inmuebles_bel)} Bello + {len(inmuebles_pin)} Pintada + {len(inmuebles_ant)} Antioquia")
