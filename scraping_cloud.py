@@ -546,51 +546,37 @@ def enviar_email(resumen):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 if __name__ == "__main__":
-    EXCLUIR_ANT = {CITY_ID_MEDELLIN, CITY_ID_BELLO, CITY_ID_PINTADA}
-
     print("="*55)
     print("  Scraping NUBE - activosporcolombia.com")
-    print("  Medellin + Antioquia + Bello + La Pintada")
+    print("  Medellin + Antioquia (datos completos)")
     print("="*55)
 
     # Descargar listas
-    print("\n[1/7] Descargando Medellin...")
+    print("\n[1/5] Descargando Medellin...")
     props_med = obtener_propiedades({"city_ids": CITY_ID_MEDELLIN})
     print(f"  {len(props_med)} propiedades")
 
-    print("\n[2/7] Descargando Bello...")
-    props_bel = obtener_propiedades({"city_ids": CITY_ID_BELLO})
-    print(f"  {len(props_bel)} propiedades")
-
-    print("\n[3/7] Descargando La Pintada...")
-    props_pin = obtener_propiedades({"city_ids": CITY_ID_PINTADA})
-    print(f"  {len(props_pin)} propiedades")
-
-    print("\n[4/7] Descargando Antioquia (sin Medellin/Bello/Pintada)...")
+    print("\n[2/5] Descargando Antioquia (sin Medellin)...")
     todas = obtener_propiedades({})
-    props_ant = [p for p in todas if p.get("city_id") and 5000<=p["city_id"]<=5999 and p["city_id"] not in EXCLUIR_ANT]
+    props_ant = [p for p in todas if p.get("city_id") and 5000<=p["city_id"]<=5999 and p["city_id"]!=CITY_ID_MEDELLIN]
     print(f"  {len(props_ant)} propiedades")
 
     # Scrape detalles con Playwright
-    print("\n[5/7] Visitando paginas...")
+    print("\n[3/5] Visitando paginas de Medellin...")
     det_med = scrape_detalles(props_med, "MED ")
-    det_bel = scrape_detalles(props_bel, "BEL ")
-    det_pin = scrape_detalles(props_pin, "PIN ")
+
+    print("\n[4/5] Visitando paginas de Antioquia...")
     det_ant = scrape_detalles(props_ant, "ANT ")
 
     # Procesar
     med = procesar(props_med, det_med)
-    bel = procesar(props_bel, det_bel)
-    pin = procesar(props_pin, det_pin)
     ant = procesar(props_ant, det_ant)
 
     # Detectar cambios
-    print("\n[6/7] Detectando cambios...")
+    print("\n[5/5] Detectando cambios y actualizando Google Sheets...")
     cm, rm = detectar_cambios(med, "med")
-    cb, rb = detectar_cambios(bel, "bel")
-    cp, rp = detectar_cambios(pin, "pin")
     ca, ra = detectar_cambios(ant, "ant")
-    todos_cambios = rm + rb + rp + ra
+    todos_cambios = rm + ra
 
     if todos_cambios:
         print(f"\n  *** {len(todos_cambios)} ALERTAS ***")
@@ -604,14 +590,11 @@ if __name__ == "__main__":
         print("  Sin cambios")
 
     # Google Sheets
-    print("\n[7/7] Actualizando Google Sheets...")
     from sheets_sync import sync_to_sheets
-    sync_to_sheets(med, ant, cm, ca,
-                   inmuebles_bello=bel, inmuebles_pintada=pin,
-                   cambios_bello=cb, cambios_pintada=cp)
+    sync_to_sheets(med, ant, cm, ca)
 
     # Email
     if todos_cambios:
         enviar_email(todos_cambios)
 
-    print(f"\nListo: {len(med)} Med + {len(bel)} Bello + {len(pin)} Pintada + {len(ant)} Antioquia")
+    print(f"\nListo: {len(med)} Medellin + {len(ant)} Antioquia")

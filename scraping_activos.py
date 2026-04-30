@@ -619,46 +619,34 @@ def procesar_propiedades(props_api, detalles_scrape):
 if __name__ == "__main__":
     print("=" * 55)
     print("  Scraping activosporcolombia.com")
-    print("  Medellin + Bello + La Pintada + Antioquia")
+    print("  Medellin + Antioquia")
     print("=" * 55)
 
     # ── Descargar listas ──
-    print("\n[1/7] Descargando propiedades de Medellin...")
+    print("\n[1/5] Descargando propiedades de Medellin...")
     props_med = obtener_medellin()
     print(f"  {len(props_med)} propiedades")
 
-    print("\n[2/7] Descargando propiedades de Bello...")
-    props_bel = obtener_propiedades({"city_ids": CITY_ID_BELLO})
-    print(f"  {len(props_bel)} propiedades")
-
-    print("\n[3/7] Descargando propiedades de La Pintada...")
-    props_pin = obtener_propiedades({"city_ids": CITY_ID_PINTADA})
-    print(f"  {len(props_pin)} propiedades")
-
-    print("\n[4/7] Descargando propiedades de Antioquia (sin Med/Bello/Pintada)...")
+    print("\n[2/5] Descargando propiedades de Antioquia (sin Medellin)...")
     props_ant = obtener_antioquia_sin_medellin()
     print(f"  {len(props_ant)} propiedades")
 
     # ── Scrape detalles ──
-    print("\n[5/7] Visitando paginas...")
+    print("\n[3/5] Visitando paginas de Medellin...")
     det_med = scrape_detalles(props_med, "MED ")
-    det_bel = scrape_detalles(props_bel, "BEL ")
-    det_pin = scrape_detalles(props_pin, "PIN ")
+
+    print("\n[4/5] Visitando paginas de Antioquia...")
     det_ant = scrape_detalles(props_ant, "ANT ")
 
     # ── Procesar ──
     inmuebles_med = procesar_propiedades(props_med, det_med)
-    inmuebles_bel = procesar_propiedades(props_bel, det_bel)
-    inmuebles_pin = procesar_propiedades(props_pin, det_pin)
     inmuebles_ant = procesar_propiedades(props_ant, det_ant)
 
     # ── Detectar cambios ──
-    print("\n[6/7] Detectando cambios...")
+    print("\n[5/5] Detectando cambios y actualizando Google Sheets...")
     cambios_med, resumen_med = detectar_cambios(inmuebles_med, "med")
-    cambios_bel, resumen_bel = detectar_cambios(inmuebles_bel, "bel")
-    cambios_pin, resumen_pin = detectar_cambios(inmuebles_pin, "pin")
     cambios_ant, resumen_ant = detectar_cambios(inmuebles_ant, "ant")
-    todos_cambios = resumen_med + resumen_bel + resumen_pin + resumen_ant
+    todos_cambios = resumen_med + resumen_ant
 
     if todos_cambios:
         print(f"\n  *** {len(todos_cambios)} CAMBIOS DETECTADOS ***")
@@ -673,14 +661,11 @@ if __name__ == "__main__":
         print("  Sin cambios respecto a la ultima actualizacion")
 
     # ── Google Sheets ──
-    print("\n[7/7] Actualizando Google Sheets...")
     from sheets_sync import sync_to_sheets
-    sync_to_sheets(inmuebles_med, inmuebles_ant, cambios_med, cambios_ant,
-                   inmuebles_bello=inmuebles_bel, inmuebles_pintada=inmuebles_pin,
-                   cambios_bello=cambios_bel, cambios_pintada=cambios_pin)
+    sync_to_sheets(inmuebles_med, inmuebles_ant, cambios_med, cambios_ant)
 
     # ── Notificacion ──
     if todos_cambios:
         enviar_email(todos_cambios)
 
-    print(f"\nListo! {len(inmuebles_med)} Med + {len(inmuebles_bel)} Bello + {len(inmuebles_pin)} Pintada + {len(inmuebles_ant)} Antioquia")
+    print(f"\nListo! {len(inmuebles_med)} Medellin + {len(inmuebles_ant)} Antioquia")
