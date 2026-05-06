@@ -7,7 +7,7 @@ Columnas auto-actualizables: ESTADO CRONOGRAMA, ETAPA ACTUAL, PLAZO, VALOR
 Columnas manuales (preserva ediciones): NOMBRE, DIRECCION, TIPO, CLIENTE, LINK, AREA m2
 """
 
-import json, os
+import json, os, time
 from datetime import datetime, timedelta, timezone
 
 SCOPES = [
@@ -270,11 +270,21 @@ def _escribir_pestaña(ws, titulo, inmuebles, cambios, tab):
         }
     })
 
-    # Ejecutar todo
+    # Ejecutar todo (con pausa entre chunks para no exceder quota)
     if requests:
         for chunk_start in range(0, len(requests), 100):
             chunk = requests[chunk_start:chunk_start+100]
-            ws.spreadsheet.batch_update({"requests": chunk})
+            for intento in range(3):
+                try:
+                    ws.spreadsheet.batch_update({"requests": chunk})
+                    break
+                except Exception as e:
+                    if "429" in str(e) and intento < 2:
+                        print(f"    Rate limit, esperando {30*(intento+1)}s...")
+                        time.sleep(30 * (intento + 1))
+                    else:
+                        raise
+            time.sleep(5)
 
 
 def _escribir_leyenda(ws):
@@ -298,7 +308,17 @@ def _escribir_leyenda(ws):
             "properties": {"pixelSize": 350}, "fields": "pixelSize"
         }}
     ]
-    ws.spreadsheet.batch_update({"requests": reqs})
+    for intento in range(3):
+        try:
+            ws.spreadsheet.batch_update({"requests": reqs})
+            break
+        except Exception as e:
+            if "429" in str(e) and intento < 2:
+                print(f"    Rate limit (leyenda), esperando {30*(intento+1)}s...")
+                time.sleep(30 * (intento + 1))
+            else:
+                raise
+    time.sleep(5)
 
 
 def _escribir_info(ws, n_med, n_ant, n_bel=0, n_pin=0):
@@ -325,7 +345,16 @@ def _escribir_info(ws, n_med, n_ant, n_bel=0, n_pin=0):
             "properties": {"pixelSize": 250}, "fields": "pixelSize"
         }}
     ]
-    ws.spreadsheet.batch_update({"requests": reqs})
+    for intento in range(3):
+        try:
+            ws.spreadsheet.batch_update({"requests": reqs})
+            break
+        except Exception as e:
+            if "429" in str(e) and intento < 2:
+                print(f"    Rate limit (info), esperando {30*(intento+1)}s...")
+                time.sleep(30 * (intento + 1))
+            else:
+                raise
 
 
 # ── Helpers de formato ──
