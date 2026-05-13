@@ -161,11 +161,14 @@ def extraer_cronograma(lineas):
                     "octubre":"10","noviembre":"11","diciembre":"12"}
     ESTADOS = {"FINALIZADO", "ACTIVO", "PRÓXIMO", "PROXIMO"}
 
-    for l in lineas:
-        if "manifestaci" in l.lower() and "abierta" in l.lower():
-            return "Manifestacion Abierta", "", "X"
+    # Primero verificar si hay cronograma — si lo hay, parsearlo siempre
+    tiene_cronograma = any("ronograma" in l for l in lineas)
 
-    if not any("ronograma" in l for l in lineas):
+    if not tiene_cronograma:
+        # Solo sin cronograma: buscar "manifestacion abierta" como estado
+        for l in lineas:
+            if "manifestaci" in l.lower() and "abierta" in l.lower():
+                return "Manifestacion Abierta", "", "X"
         return "Manifestacion Abierta", "", "X"
 
     # Parsear bloques de etapas desde "Fechas del Proceso"
@@ -353,6 +356,8 @@ def detectar_cambios(inmuebles, tab):
                 "nombre": item.get("nombre","?"),
                 "tipo_inmueble": item.get("tipo",""),
                 "valor": item.get("valor",""),
+                "link": item.get("link",""),
+                "fmi": item.get("fmi",""),
             })
             for campo in CAMPOS:
                 registro[f"{base}:{campo}"] = ahora
@@ -369,6 +374,8 @@ def detectar_cambios(inmuebles, tab):
                     "tipo": "CAMBIO", "tab": tab.upper(),
                     "nombre": item.get("nombre","?"),
                     "campo": campo, "antes": viejo, "ahora": nuevo,
+                    "link": item.get("link",""),
+                    "fmi": item.get("fmi",""),
                 })
 
         anteriores[base] = {c: str(item.get(c,"")) for c in CAMPOS_GUARDAR}
@@ -460,12 +467,18 @@ def enviar_email(resumen):
                 html += f'<table style="{ESTILO_TABLA}">'
                 html += f'<tr><th style="{ESTILO_TH}">Inmueble</th>'
                 html += f'<th style="{ESTILO_TH}">Tipo</th>'
-                html += f'<th style="{ESTILO_TH}">Valor</th></tr>'
+                html += f'<th style="{ESTILO_TH}">Valor</th>'
+                html += f'<th style="{ESTILO_TH}">FMI</th>'
+                html += f'<th style="{ESTILO_TH}">Link</th></tr>'
                 for i, c in enumerate(tab_nuevos):
                     td = ESTILO_TD_ALT if i % 2 else ESTILO_TD
+                    link = c.get("link","")
+                    link_html = f'<a href="{link}" style="color:#1565C0;">Ver</a>' if link else ""
                     html += f'<tr><td style="{td}">{c["nombre"]}</td>'
                     html += f'<td style="{td}">{c["tipo_inmueble"]}</td>'
-                    html += f'<td style="{td}">{c["valor"]}</td></tr>'
+                    html += f'<td style="{td}">{c["valor"]}</td>'
+                    html += f'<td style="{td}">{c.get("fmi","")}</td>'
+                    html += f'<td style="{td}">{link_html}</td></tr>'
                 html += '</table>'
 
         if cambios:
@@ -478,14 +491,20 @@ def enviar_email(resumen):
                 html += f'<tr><th style="{ESTILO_TH}">Inmueble</th>'
                 html += f'<th style="{ESTILO_TH}">Campo</th>'
                 html += f'<th style="{ESTILO_TH}">Antes</th>'
-                html += f'<th style="{ESTILO_TH}">Ahora</th></tr>'
+                html += f'<th style="{ESTILO_TH}">Ahora</th>'
+                html += f'<th style="{ESTILO_TH}">FMI</th>'
+                html += f'<th style="{ESTILO_TH}">Link</th></tr>'
                 for i, c in enumerate(tab_cambios):
                     td = ESTILO_TD_ALT if i % 2 else ESTILO_TD
                     campo_nombre = NOMBRES_CAMPO.get(c["campo"], c["campo"])
+                    link = c.get("link","")
+                    link_html = f'<a href="{link}" style="color:#1565C0;">Ver</a>' if link else ""
                     html += f'<tr><td style="{td}">{c["nombre"]}</td>'
                     html += f'<td style="{td}">{campo_nombre}</td>'
                     html += f'<td style="{td}">{c["antes"] or "-"}</td>'
-                    html += f'<td style="{td}">{c["ahora"] or "-"}</td></tr>'
+                    html += f'<td style="{td}">{c["ahora"] or "-"}</td>'
+                    html += f'<td style="{td}">{c.get("fmi","")}</td>'
+                    html += f'<td style="{td}">{link_html}</td></tr>'
                 html += '</table>'
 
         if eliminados:

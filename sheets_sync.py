@@ -204,13 +204,7 @@ def _escribir_pestaña(ws, titulo, inmuebles, cambios, tab):
     requests.append(_formato_celdas(ws_id, 1, 0, 2, len(COLS),
                                      COLOR_HDR2, COLOR_BLANCO, True, 10))
 
-    # Mapa de campo CAMPOS -> campo en cambios
-    CAMPO_A_COMPARAR = {
-        "nombre":0, "direccion":1, "tipo":2, "estado_crono":3,
-        "etapa_actual":4, "plazo":5, "link":7, "area_m2":8, "valor":9,
-    }
-
-    # Formato filas de datos
+    # Formato filas de datos — por FILA (no por celda) para reducir API calls
     for i, item in enumerate(inmuebles):
         fila_idx = i + 2
         pid = item.get("_id", "")
@@ -219,15 +213,16 @@ def _escribir_pestaña(ws, titulo, inmuebles, cambios, tab):
         bg = color_fila(item.get("estado_crono",""), item.get("estado_api",""))
         fg = COLOR_BLANCO if es_vendido else None
 
+        # Aplicar color base a toda la fila
+        requests.append(_formato_celdas(ws_id, fila_idx, 0, fila_idx+1, len(COLS),
+                                         bg, fg, False, 10))
+
+        # Sobrescribir con rojo solo las celdas con cambios
         for j, campo in enumerate(CAMPOS):
-            # Rojo solo en columnas auto-actualizables con cambio
             clave_cambio = f"{tab}:{pid}:{campo}"
             if campo in AUTO_CAMPOS and clave_cambio in cambios:
-                cell_bg = COLOR_CAMBIO
-            else:
-                cell_bg = bg
-            requests.append(_formato_celdas(ws_id, fila_idx, j, fila_idx+1, j+1,
-                                             cell_bg, fg, False, 10))
+                requests.append(_formato_celdas(ws_id, fila_idx, j, fila_idx+1, j+1,
+                                                 COLOR_CAMBIO, fg, False, 10))
 
     # Wrap text en columna LINK
     requests.append({
