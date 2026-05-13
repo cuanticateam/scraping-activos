@@ -208,11 +208,14 @@ def extraer_cronograma(lineas):
                     "nov":"11","dic":"12"}
     ESTADOS = {"FINALIZADO", "ACTIVO", "PRÓXIMO", "PROXIMO"}
 
-    for l in lineas:
-        if "manifestaci" in l.lower() and "abierta" in l.lower():
-            return "Manifestacion Abierta", "", "X"
+    # Primero verificar si hay cronograma — si lo hay, parsearlo siempre
+    tiene_cronograma = any("ronograma" in l for l in lineas)
 
-    if not any("ronograma" in l for l in lineas):
+    if not tiene_cronograma:
+        # Solo sin cronograma: buscar "manifestacion abierta" como estado
+        for l in lineas:
+            if "manifestaci" in l.lower() and "abierta" in l.lower():
+                return "Manifestacion Abierta", "", "X"
         return "Manifestacion Abierta", "", "X"
 
     # Parsear bloques de etapas desde "Fechas del Proceso"
