@@ -28,6 +28,8 @@ COLOR_SUBASTA = {"red":1.0,  "green":0.95, "blue":0.80}   # FFF2CC
 COLOR_BLANCO  = {"red":1.0,  "green":1.0,  "blue":1.0}
 COLOR_CAMBIO  = {"red":1.0,  "green":0.85, "blue":0.85}  # rojo claro para cambios
 COLOR_VENDIDO = {"red":0.6,  "green":0.0,  "blue":0.4}   # magenta oscuro
+COLOR_ELIMINADO = {"red":0.85, "green":0.85, "blue":0.85}  # gris claro
+COLOR_ELIM_HDR  = {"red":0.55, "green":0.55, "blue":0.55}  # gris oscuro
 
 COLS = ["NOMBRE","DIRECCION","TIPO","FOLIO MATRICULA",
         "ESTADO CRONOGRAMA","ETAPA ACTUAL","PLAZO","CLIENTE","LINK",
@@ -75,7 +77,8 @@ def color_fila(estado_crono, estado_api):
 
 def sync_to_sheets(inmuebles_med, inmuebles_ant, cambios_med, cambios_ant,
                    inmuebles_bello=None, inmuebles_pintada=None,
-                   cambios_bello=None, cambios_pintada=None):
+                   cambios_bello=None, cambios_pintada=None,
+                   eliminados_med=None, eliminados_ant=None):
     """
     Escribe los datos en Google Sheets con formato y colores.
     Preserva ediciones manuales en columnas no-automaticas.
@@ -100,11 +103,11 @@ def sync_to_sheets(inmuebles_med, inmuebles_ant, cambios_med, cambios_ant,
 
     print("  Escribiendo Medellin...")
     _escribir_pestaña(ws_med, "LISTADO DE VENTA MASIVA - MEDELLIN",
-                      inmuebles_med, cambios_med, "med")
+                      inmuebles_med, cambios_med, "med", eliminados_med or [])
 
     print("  Escribiendo Antioquia...")
     _escribir_pestaña(ws_ant, "LISTADO DE VENTA MASIVA - ANTIOQUIA (sin Medellin)",
-                      inmuebles_ant, cambios_ant, "ant")
+                      inmuebles_ant, cambios_ant, "ant", eliminados_ant or [])
 
     # Bello y La Pintada
     if inmuebles_bello is not None:
@@ -136,7 +139,7 @@ def _obtener_hoja(sh, existentes, nombre, filas_min):
     return sh.add_worksheet(title=nombre, rows=max(filas_min + 5, 10), cols=len(COLS))
 
 
-def _escribir_pestaña(ws, titulo, inmuebles, cambios, tab):
+def _escribir_pestaña(ws, titulo, inmuebles, cambios, tab, eliminados=None):
     # ── Leer datos existentes para preservar ediciones manuales ──
     existing = ws.get_all_values()
     manual_por_link = {}  # link -> fila completa
@@ -172,6 +175,22 @@ def _escribir_pestaña(ws, titulo, inmuebles, cambios, tab):
                     val = item.get(campo, "")
                     fila.append(str(val) if val is not None else "")
         filas.append(fila)
+
+    n_activos = len(inmuebles)
+
+    # ── Agregar eliminados al final ──
+    if eliminados:
+        filas.append(["ELIMINADOS DE LA PAGINA"] + [""] * (len(COLS) - 1))
+        for elim in eliminados:
+            fila = []
+            for campo in CAMPOS:
+                if campo == "estado_crono":
+                    fila.append("ELIMINADO")
+                elif campo == "etapa_actual":
+                    fila.append(elim.get("_fecha_eliminado", "")[:10])
+                else:
+                    fila.append(str(elim.get(campo, "")))
+            filas.append(fila)
 
     # ── Escribir (borrar y reescribir para manejar filas eliminadas) ──
     ws.clear()
@@ -223,6 +242,24 @@ def _escribir_pestaña(ws, titulo, inmuebles, cambios, tab):
             if campo in AUTO_CAMPOS and clave_cambio in cambios:
                 requests.append(_formato_celdas(ws_id, fila_idx, j, fila_idx+1, j+1,
                                                  COLOR_CAMBIO, fg, False, 10))
+
+    # Formato seccion eliminados
+    if eliminados:
+        sep_idx = n_activos + 2  # fila del separador "ELIMINADOS DE LA PAGINA"
+        # Merge y formato del separador
+        requests.append({
+            "mergeCells": {
+                "range": _rango(ws_id, sep_idx, 0, sep_idx + 1, len(COLS)),
+                "mergeType": "MERGE_ALL"
+            }
+        })
+        requests.append(_formato_celdas(ws_id, sep_idx, 0, sep_idx + 1, len(COLS),
+                                         COLOR_ELIM_HDR, COLOR_BLANCO, True, 11))
+        # Formato filas eliminadas
+        for i in range(len(eliminados)):
+            fila_idx = sep_idx + 1 + i
+            requests.append(_formato_celdas(ws_id, fila_idx, 0, fila_idx + 1, len(COLS),
+                                             COLOR_ELIMINADO, None, False, 10))
 
     # Wrap text en columna LINK
     requests.append({

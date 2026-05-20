@@ -358,8 +358,9 @@ def detectar_cambios(inmuebles_nuevos, pestaña):
         ids_actuales.add(clave_base)
         prev = anteriores.get(clave_base, {})
 
-        # Inmueble NUEVO
-        if not prev:
+        # Inmueble NUEVO (o que vuelve despues de ser eliminado)
+        es_nuevo = not prev or prev.get("_eliminado") == "true"
+        if es_nuevo:
             resumen.append({
                 "tipo": "NUEVO", "tab": pestaña.upper(),
                 "nombre": item.get("nombre","?"),
@@ -371,6 +372,7 @@ def detectar_cambios(inmuebles_nuevos, pestaña):
             for campo in CAMPOS_COMPARAR:
                 registro[f"{clave_base}:{campo}"] = ahora
                 cambios_ahora[f"{clave_base}:{campo}"] = True
+            prev = {}  # tratar como nuevo para no comparar campos viejos
 
         # Cambios en campos
         for campo in CAMPOS_COMPARAR:
@@ -393,25 +395,29 @@ def detectar_cambios(inmuebles_nuevos, pestaña):
         datos_item = {c: str(item.get(c,"")) for c in CAMPOS_GUARDAR}
         anteriores[clave_base] = datos_item
 
-    # Detectar inmuebles ELIMINADOS
+    # Detectar inmuebles ELIMINADOS (marcar, no borrar)
     for clave_vieja in list(anteriores.keys()):
         if clave_vieja.startswith(f"{pestaña}:") and clave_vieja not in ids_actuales:
             datos_viejos = anteriores[clave_vieja]
-            resumen.append({
-                "tipo": "ELIMINADO", "tab": pestaña.upper(),
-                "nombre": datos_viejos.get("nombre", "?"),
-                "tipo_inmueble": datos_viejos.get("tipo", ""),
-                "direccion": datos_viejos.get("direccion", ""),
-                "matricula": datos_viejos.get("matricula", ""),
-                "area_m2": datos_viejos.get("area_m2", ""),
-                "valor": datos_viejos.get("valor", ""),
-                "estado_crono": datos_viejos.get("estado_crono", ""),
-                "etapa_actual": datos_viejos.get("etapa_actual", ""),
-                "plazo": datos_viejos.get("plazo", ""),
-                "link": datos_viejos.get("link", ""),
-                "fmi": datos_viejos.get("fmi", ""),
-            })
-            del anteriores[clave_vieja]
+            if datos_viejos.get("_eliminado") != "true":
+                # Recien eliminado — notificar
+                resumen.append({
+                    "tipo": "ELIMINADO", "tab": pestaña.upper(),
+                    "nombre": datos_viejos.get("nombre", "?"),
+                    "tipo_inmueble": datos_viejos.get("tipo", ""),
+                    "direccion": datos_viejos.get("direccion", ""),
+                    "matricula": datos_viejos.get("matricula", ""),
+                    "area_m2": datos_viejos.get("area_m2", ""),
+                    "valor": datos_viejos.get("valor", ""),
+                    "estado_crono": datos_viejos.get("estado_crono", ""),
+                    "etapa_actual": datos_viejos.get("etapa_actual", ""),
+                    "plazo": datos_viejos.get("plazo", ""),
+                    "link": datos_viejos.get("link", ""),
+                    "fmi": datos_viejos.get("fmi", ""),
+                })
+                datos_viejos["_eliminado"] = "true"
+                datos_viejos["_fecha_eliminado"] = ahora
+                anteriores[clave_vieja] = datos_viejos
 
     # Limpiar cambios viejos (> DIAS_ROJO)
     for k in list(registro.keys()):
@@ -679,9 +685,15 @@ if __name__ == "__main__":
     else:
         print("  Sin cambios respecto a la ultima actualizacion")
 
+    # ── Recoger eliminados del historial ──
+    anteriores = cargar_datos_anteriores()
+    elim_med = [v for k, v in anteriores.items() if k.startswith("med:") and v.get("_eliminado") == "true"]
+    elim_ant = [v for k, v in anteriores.items() if k.startswith("ant:") and v.get("_eliminado") == "true"]
+
     # ── Google Sheets ──
     from sheets_sync import sync_to_sheets
-    sync_to_sheets(inmuebles_med, inmuebles_ant, cambios_med, cambios_ant)
+    sync_to_sheets(inmuebles_med, inmuebles_ant, cambios_med, cambios_ant,
+                   eliminados_med=elim_med, eliminados_ant=elim_ant)
 
     # ── Notificacion ──
     if todos_cambios:

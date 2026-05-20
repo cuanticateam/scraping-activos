@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Light Tunnel</title>
+<style>
+  * { margin: 0; padding: 0; }
+  body { background: #000; overflow: hidden; }
+  canvas { display: block; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
+if (!gl) { alert('WebGL not supported'); }
+
+function resize() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+}
+window.addEventListener('resize', resize);
+resize();
+
+const vsSource = `
+  attribute vec2 aPos;
+  void main() {
+    gl_Position = vec4(aPos, 0.0, 1.0);
+  }
+`;
+
+const fsSource = `
+precision highp float;
+uniform float uTime;
+uniform vec2 uRes;
+
+// Smooth noise functions (no hard edges)
+float hash1(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+vec2 hash(vec2 p) {
+  p = vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)));
+  return -1.0 + 2.0 * fract(sin(p) * 43758.5453);
+}
+
+// Gradient noise - smooth, no cell edges
+float gnoise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f); // smooth interpolation
+  return mix(
+    mix(dot(hash(i + vec2(0.0, 0.0)), f - vec2(0.0, 0.0)),
+        dot(hash(i + vec2(1.0, 0.0)), f - vec2(1.0, 0.0)), u.x),
+    mix(dot(hash(i + vec2(0.0, 1.0)), f - vec2(0.0, 1.0)),
+        dot(hash(i + vec2(1.0, 1.0)), f - vec2(1.0, 1.0)), u.x),
+    u.y
+  );
+}
+
+// FBM - layered smooth noise for organic flowing shapes
+float fbm(vec2 p) {
+  float val = 0.0;
+  float amp = 0.5;
+  float freq = 1.0;
+  for (int i = 0; i < 6; i++) {
+    val += amp * gnoise(p * freq);
+    freq *= 2.0;
+    amp *= 0.5;
+  }
+  return val;
+}
+
+// Domain-warped FBM for aurora-like flowing distortion
+float warpedFbm(vec2 p, float t) {
+  vec2 q = vec2(
+    fbm(p + vec2(0.0, 0.0) + t * 0.15),
+    fbm(p + vec2(5.2, 1.3) + t * 0.12)
+  );
+  vec2 r = vec2(
+    fbm(p + 4.0 * q + vec2(1.7, 9.2) + t * 0.1),
+    fbm(p + 4.0 * q + vec2(8.3, 2.8) + t * 0.08)
+  );
+  return fbm(p + 3.5 * r);
+}
+
+vec3 hsv2rgb(float h, float s, float v) {
+  vec3 c = vec3(h * 6.0, s, v);
+  vec3 rgb = clamp(abs(mod(c.x + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
+  return c.z * mix(vec3(1.0), rgb, c.y);
+}
+
+// Aurora color palette - vivid, saturated, luminous
+vec3 auroraColor(float t, float intensity) {
+  vec3 c1 = vec3(0.05, 1.0, 0.4);  // electric green
+  vec3 c2 = vec3(0.0, 0.8, 1.0);   // cyan
+  vec3 c3 = vec3(0.15, 0.1, 1.0);  // vivid blue
+  vec3 c4 = vec3(0.7, 0.0, 1.0);   // electric purple
+  vec3 c5 = vec3(1.0, 0.1, 0.5);   // hot pink
+  vec3 c6 = vec3(1.0, 0.6, 0.05);  // bright orange
+
+  float tt = fract(t) * 6.0;
+  vec3 col;
+  if (tt < 1.0) col = mix(c1, c2, tt);
+  else if (tt < 2.0) col = mix(c2, c3, tt - 1.0);
+  else if (tt < 3.0) col = mix(c3, c4, tt - 2.0);
+  else if (tt < 4.0) col = mix(c4, c5, tt - 3.0);
+  else if (tt < 5.0) col = mix(c5, c6, tt - 4.0);
+  else col = mix(c6, c1, tt - 5.0);
+
+  return col * intensity;
+}
+
+// Stars - tiny bright twinkles
+float stars(vec2 uv, float t) {
+  float star = 0.0;
+  for (int i = 0; i < 3; i++) {
+    float fi = float(i);
+    vec2 grid = uv * (80.0 + fi * 40.0);
+    vec2 id = floor(grid);
+    vec2 gv = fract(grid) - 0.5;
+    float h = hash1(id + fi * 100.0);
+    if (h > 0.85) {
+      vec2 offset = vec2(hash1(id + vec2(1.0, 0.0)), hash1(id + vec2(0.0, 1.0))) - 0.5;
+      float d = length(gv - offset * 0.4);
+      float twinkle = 0.5 + 0.5 * sin(t * (2.0 + h * 4.0) + h * 50.0);
+      float brightness = smoothstep(0.05 + 0.02 * h, 0.0, d) * twinkle;
+      star += brightness * (0.5 + h * 0.5);
+    }
+  }
+  return star;
+}
+
+// Shooting stars flying outward toward camera
+float shootingStar(vec2 uv, float t, float seed) {
+  // Each shooting star has a random angle and timing
+  float starAngle = hash1(vec2(seed, seed * 7.3)) * 6.2831;
+  float period = 2.0 + hash1(vec2(seed * 3.1, seed)) * 3.0; // 2-5 sec cycle
+  float phase = mod(t + hash1(vec2(seed * 5.7, seed * 2.3)) * period, period);
+  float life = phase / period; // 0 to 1
+
+  // Start from near center, fly outward toward camera
+  float startR = 0.05 + hash1(vec2(seed * 11.0, seed * 4.0)) * 0.1;
+  float endR = 0.9 + hash1(vec2(seed * 11.0, seed * 4.0)) * 0.4;
+  float currentR = mix(startR, endR, life); // moves outward
+
+  // Position along its path
+  vec2 starPos = vec2(cos(starAngle), sin(starAngle)) * currentR;
+
+  // Trail - elongated away from center (trails behind toward center)
+  vec2 outward = currentR > 0.001 ? normalize(starPos) : vec2(cos(starAngle), sin(starAngle));
+  vec2 diff = uv - starPos;
+  float along = dot(diff, -outward); // trail goes inward (behind the star)
+  float perp = length(diff - along * (-outward)); // perpendicular distance
+
+  // Trail shape: bright head, fading tail behind
+  float trailLen = 0.06 + 0.04 * hash1(vec2(seed * 8.0, 0.0));
+  float head = smoothstep(0.005, 0.0, perp) * smoothstep(-0.005, 0.0, along) * smoothstep(trailLen, 0.0, along);
+
+  // Fade in and out
+  float fade = smoothstep(0.0, 0.1, life) * smoothstep(1.0, 0.7, life);
+
+  return head * fade * 2.0;
+}
+
+// Seamless noise sampling using cartesian tunnel coords (no atan seam)
+float seamlessAurora(vec2 dir, float depth, float t, float scale, vec2 offset) {
+  // Use direction components + depth as noise coordinates - naturally wraps
+  vec2 p1 = vec2(dir.x * scale + offset.x, depth * scale * 0.5 + t + offset.y);
+  vec2 p2 = vec2(dir.y * scale + offset.x + 7.0, depth * scale * 0.5 + t + offset.y + 3.0);
+  return warpedFbm(p1, t) * 0.5 + fbm(p2) * 0.5;
+}
+
+void main() {
+  vec2 uv = (gl_FragCoord.xy - 0.5 * uRes) / min(uRes.x, uRes.y);
+  float t = uTime;
+
+  // Polar coords from center
+  float r = length(uv);
+  vec2 dir = r > 0.001 ? uv / r : vec2(1.0, 0.0); // normalized direction, no atan needed
+
+  // Warp direction with noise (seamless, no angle discontinuity)
+  float warpX = fbm(vec2(dir.x * 2.0 + dir.y, r * 3.0 - t * 0.8)) * 0.15;
+  float warpY = fbm(vec2(dir.y * 2.0 - dir.x, r * 3.0 - t * 0.7)) * 0.15;
+  vec2 warpedDir = normalize(dir + vec2(warpX, warpY));
+
+  // Warp radius
+  float radiusWarp = gnoise(vec2(dir.x * 3.0 + t * 0.4, r * 4.0 + dir.y)) * 0.08;
+  float warpedR = r + radiusWarp;
+
+  // Tunnel depth
+  float depth = 0.5 / (warpedR + 0.04);
+
+  // Aurora layers - sampled seamlessly using cartesian direction
+  float aurora1 = seamlessAurora(warpedDir, depth, t * 1.2, 3.0, vec2(0.0, 0.0));
+  float aurora2 = seamlessAurora(warpedDir, depth, t * 1.0, 2.0, vec2(3.1, 7.4));
+  float aurora3 = seamlessAurora(warpedDir, depth, t * 0.8, 4.0, vec2(11.0, 2.5));
+  float aurora4 = seamlessAurora(warpedDir, depth, t * 0.6, 1.5, vec2(5.8, 13.0));
+
+  // Color indices - use direction components instead of angle
+  float angularColor = atan(warpedDir.y, warpedDir.x) / 6.2831 + 0.5; // only for color, seam doesn't matter
+  float colorIdx1 = aurora1 * 0.5 + angularColor + t * 0.05;
+  float colorIdx2 = aurora2 * 0.4 + depth * 0.03 + t * 0.03;
+  float colorIdx3 = aurora3 * 0.3 + angularColor * 0.5 + t * 0.07;
+
+  // Intensity
+  float intensity1 = pow(smoothstep(-0.1, 0.4, aurora1), 0.6) * 1.8;
+  float intensity2 = pow(smoothstep(-0.15, 0.35, aurora2), 0.6) * 1.5;
+  float intensity3 = pow(smoothstep(-0.05, 0.45, aurora3), 0.6) * 1.2;
+
+  vec3 col1 = auroraColor(colorIdx1, intensity1);
+  vec3 col2 = auroraColor(colorIdx2 + 0.33, intensity2);
+  vec3 col3 = auroraColor(colorIdx3 + 0.66, intensity3);
+
+  // Blend additively
+  vec3 col = col1 + col2 * 0.85 + col3 * 0.7;
+
+  // Warm highlights
+  float warmth = pow(smoothstep(-0.1, 0.5, aurora4), 0.5);
+  col += vec3(0.6, 0.3, 0.05) * warmth * 0.5;
+
+  // Sparkle/shimmer
+  vec2 sparkUV = vec2(warpedDir.x * 4.0, depth * 2.0 + t);
+  float sparkle1 = gnoise(sparkUV * 4.0 + t * 3.0);
+  float sparkle2 = gnoise(sparkUV * 6.0 - t * 2.5 + vec2(5.0, 3.0));
+  float sparkle = pow(max(sparkle1, 0.0), 6.0) + pow(max(sparkle2, 0.0), 8.0);
+  sparkle *= smoothstep(1.5, 0.1, r) * 1.5;
+  col += col * sparkle * 2.0;
+  col += vec3(1.0, 0.95, 0.9) * sparkle * 0.4;
+
+  // Pulsing flashes
+  float pulse = pow(0.5 + 0.5 * sin(depth * 3.0 - t * 4.0 + aurora1 * 5.0), 3.0);
+  col *= 1.0 + pulse * 0.6;
+
+  // Tunnel depth shading: dark edges, bright center
+  float tunnelFade = smoothstep(1.2, 0.08, r);
+  col *= tunnelFade;
+
+  // Dark space background
+  vec3 spaceColor = vec3(0.01, 0.005, 0.03);
+  col = mix(spaceColor, col, smoothstep(1.5, 0.4, r));
+
+  // Light at the end of the tunnel
+  float centerGlow = exp(-r * 5.0) * 5.0;
+  col += vec3(1.0, 0.95, 1.0) * centerGlow;
+  col += vec3(0.8, 0.6, 1.0) * exp(-r * 10.0) * 1.2;
+  col += vec3(1.0) * exp(-r * 18.0) * 2.0;
+
+  // Curved light rays (seamless)
+  float a = atan(warpedDir.y, warpedDir.x); // only for ray pattern, not texture
+  float rays = 0.0;
+  float curvedA1 = a + fbm(vec2(dir.x * 3.0, r * 2.0 - t * 0.6)) * 0.5;
+  float curvedA2 = a - gnoise(vec2(dir.y * 2.0 + t * 0.5, r * 3.5)) * 0.4;
+  float curvedA3 = a + gnoise(vec2(dir.x * 5.0 - t * 0.3, r * 6.0 + t * 0.7)) * 0.3;
+  rays += pow(0.5 + 0.5 * sin(curvedA1 * 6.0 + depth * 1.2 - t * 1.5), 2.5) * 0.5;
+  rays += pow(0.5 + 0.5 * sin(curvedA2 * 4.0 - depth * 0.9 + t * 1.0), 2.5) * 0.4;
+  rays += pow(0.5 + 0.5 * sin(curvedA3 * 8.0 + depth * 0.7 - t * 2.0), 3.0) * 0.3;
+  rays *= exp(-r * 1.5) * 0.35;
+  vec3 rayCol = auroraColor(a / 6.2831 + t * 0.06, 1.5);
+  col += rayCol * rays;
+
+  // Curved streaks
+  for (int i = 0; i < 5; i++) {
+    float fi = float(i);
+    float streakAngle = fi * 1.2566 + t * 0.2 + fbm(vec2(fi * 3.7, t * 0.15)) * 1.5;
+    float angleDiff = a - streakAngle;
+    angleDiff = mod(angleDiff + 3.14159, 6.2831) - 3.14159;
+    float streakWidth = 0.08 + 0.06 * gnoise(vec2(depth * 0.5 + fi, t * 0.3));
+    float streak = exp(-angleDiff * angleDiff / (streakWidth * streakWidth));
+    streak *= smoothstep(0.05, 0.3, r) * smoothstep(1.8, 0.1, r);
+    vec3 sCol = auroraColor(fi * 0.18 + t * 0.04, 1.8);
+    col += sCol * streak * 0.4;
+  }
+
+  // --- STARS ---
+  float starField = stars(uv, t);
+  float starMask = smoothstep(0.2, 0.8, r) * (1.0 - tunnelFade * 0.7);
+  vec3 starColor = mix(vec3(0.8, 0.85, 1.0), vec3(1.0, 0.9, 0.7), hash1(uv * 50.0));
+  col += starColor * starField * starMask * 1.5;
+
+  // --- SHOOTING STARS flying toward center ---
+  for (int i = 0; i < 12; i++) {
+    float fi = float(i);
+    float ss = shootingStar(uv, t, fi + 1.0);
+    // Each shooting star has its own color
+    vec3 ssColor = mix(vec3(1.0, 1.0, 1.0), auroraColor(hash1(vec2(fi * 4.3, fi * 7.1)), 1.0), 0.4);
+    col += ssColor * ss;
+  }
+
+  // Boost saturation
+  float lum = dot(col, vec3(0.299, 0.587, 0.114));
+  col = mix(vec3(lum), col, 1.4);
+
+  // Tone mapping
+  col = 1.0 - exp(-col * 1.2);
+  col = pow(col, vec3(0.82));
+
+  gl_FragColor = vec4(col, 1.0);
+}
+`;
+
+function compileShader(src, type) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+    console.error(gl.getShaderInfoLog(s));
+    return null;
+  }
+  return s;
+}
+
+const vs = compileShader(vsSource, gl.VERTEX_SHADER);
+const fs = compileShader(fsSource, gl.FRAGMENT_SHADER);
+const prog = gl.createProgram();
+gl.attachShader(prog, vs);
+gl.attachShader(prog, fs);
+gl.linkProgram(prog);
+gl.useProgram(prog);
+
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+const aPos = gl.getAttribLocation(prog, 'aPos');
+gl.enableVertexAttribArray(aPos);
+gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+const uTime = gl.getUniformLocation(prog, 'uTime');
+const uRes = gl.getUniformLocation(prog, 'uRes');
+
+function render(t) {
+  gl.uniform1f(uTime, t * 0.001);
+  gl.uniform2f(uRes, canvas.width, canvas.height);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  requestAnimationFrame(render);
+}
+requestAnimationFrame(render);
+</script>
+</body>
+</html>

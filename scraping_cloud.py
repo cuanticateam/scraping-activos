@@ -349,8 +349,9 @@ def detectar_cambios(inmuebles, tab):
         ids_actuales.add(base)
         prev = anteriores.get(base, {})
 
-        # Inmueble NUEVO
-        if not prev:
+        # Inmueble NUEVO (o que vuelve despues de ser eliminado)
+        es_nuevo = not prev or prev.get("_eliminado") == "true"
+        if es_nuevo:
             resumen.append({
                 "tipo": "NUEVO", "tab": tab.upper(),
                 "nombre": item.get("nombre","?"),
@@ -362,6 +363,7 @@ def detectar_cambios(inmuebles, tab):
             for campo in CAMPOS:
                 registro[f"{base}:{campo}"] = ahora
                 cambios_ahora[f"{base}:{campo}"] = True
+            prev = {}
 
         # Cambios en campos
         for campo in CAMPOS:
@@ -380,25 +382,28 @@ def detectar_cambios(inmuebles, tab):
 
         anteriores[base] = {c: str(item.get(c,"")) for c in CAMPOS_GUARDAR}
 
-    # Inmuebles ELIMINADOS
+    # Inmuebles ELIMINADOS (marcar, no borrar)
     for clave in list(anteriores.keys()):
         if clave.startswith(f"{tab}:") and clave not in ids_actuales:
             datos_viejos = anteriores[clave]
-            resumen.append({
-                "tipo": "ELIMINADO", "tab": tab.upper(),
-                "nombre": datos_viejos.get("nombre", "?"),
-                "tipo_inmueble": datos_viejos.get("tipo", ""),
-                "direccion": datos_viejos.get("direccion", ""),
-                "matricula": datos_viejos.get("matricula", ""),
-                "area_m2": datos_viejos.get("area_m2", ""),
-                "valor": datos_viejos.get("valor", ""),
-                "estado_crono": datos_viejos.get("estado_crono", ""),
-                "etapa_actual": datos_viejos.get("etapa_actual", ""),
-                "plazo": datos_viejos.get("plazo", ""),
-                "link": datos_viejos.get("link", ""),
-                "fmi": datos_viejos.get("fmi", ""),
-            })
-            del anteriores[clave]
+            if datos_viejos.get("_eliminado") != "true":
+                resumen.append({
+                    "tipo": "ELIMINADO", "tab": tab.upper(),
+                    "nombre": datos_viejos.get("nombre", "?"),
+                    "tipo_inmueble": datos_viejos.get("tipo", ""),
+                    "direccion": datos_viejos.get("direccion", ""),
+                    "matricula": datos_viejos.get("matricula", ""),
+                    "area_m2": datos_viejos.get("area_m2", ""),
+                    "valor": datos_viejos.get("valor", ""),
+                    "estado_crono": datos_viejos.get("estado_crono", ""),
+                    "etapa_actual": datos_viejos.get("etapa_actual", ""),
+                    "plazo": datos_viejos.get("plazo", ""),
+                    "link": datos_viejos.get("link", ""),
+                    "fmi": datos_viejos.get("fmi", ""),
+                })
+                datos_viejos["_eliminado"] = "true"
+                datos_viejos["_fecha_eliminado"] = ahora
+                anteriores[clave] = datos_viejos
 
     # Limpiar cambios viejos
     for k in list(registro.keys()):
@@ -608,9 +613,14 @@ if __name__ == "__main__":
     else:
         print("  Sin cambios")
 
+    # Recoger eliminados del historial
+    anteriores = cargar_json(DATOS_FILE)
+    elim_med = [v for k, v in anteriores.items() if k.startswith("med:") and v.get("_eliminado") == "true"]
+    elim_ant = [v for k, v in anteriores.items() if k.startswith("ant:") and v.get("_eliminado") == "true"]
+
     # Google Sheets
     from sheets_sync import sync_to_sheets
-    sync_to_sheets(med, ant, cm, ca)
+    sync_to_sheets(med, ant, cm, ca, eliminados_med=elim_med, eliminados_ant=elim_ant)
 
     # Email
     if todos_cambios:

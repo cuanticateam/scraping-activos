@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Aurora Background</title>
+<style>
+  * { margin: 0; padding: 0; }
+  body { background: #050008; overflow: hidden; }
+  canvas { display: block; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
+
+function resize() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+}
+window.addEventListener('resize', resize);
+resize();
+
+const vsSource = `
+  attribute vec2 aPos;
+  void main() { gl_Position = vec4(aPos, 0.0, 1.0); }
+`;
+
+const fsSource = `
+precision highp float;
+uniform float uTime;
+uniform vec2 uRes;
+
+vec2 hash(vec2 p) {
+  p = vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)));
+  return -1.0 + 2.0 * fract(sin(p) * 43758.5453);
+}
+
+float gnoise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(
+    mix(dot(hash(i), f),
+        dot(hash(i + vec2(1.0, 0.0)), f - vec2(1.0, 0.0)), u.x),
+    mix(dot(hash(i + vec2(0.0, 1.0)), f - vec2(0.0, 1.0)),
+        dot(hash(i + vec2(1.0, 1.0)), f - vec2(1.0, 1.0)), u.x),
+    u.y
+  );
+}
+
+float fbm(vec2 p) {
+  float v = 0.0, a = 0.5;
+  for (int i = 0; i < 3; i++) {
+    v += a * gnoise(p);
+    p *= 1.8;
+    a *= 0.5;
+  }
+  return v;
+}
+
+// Gentle warp for soft irregular shapes (not smoky)
+float softShape(vec2 p, float t, vec2 seed) {
+  vec2 q = vec2(
+    fbm(p * 0.7 + seed + t * 0.06),
+    fbm(p * 0.7 + seed + vec2(5.2, 1.3) - t * 0.05)
+  );
+  return fbm(p * 0.5 + 1.5 * q);
+}
+
+// Each light patch: soft glow that fades in and out
+float lightPatch(vec2 uv, float t, float seed, vec2 center, float scale) {
+  vec2 p = (uv - center) * scale;
+
+  // Soft shape - gentle warping, not noisy
+  float shape = softShape(p, t * 0.3, vec2(seed * 7.3, seed * 3.1));
+
+  // Very soft threshold - wide gradient, no hard edges
+  float edge = smoothstep(-0.2, 0.5, shape);
+
+  // Fade in/out cycle
+  float period = 5.0 + sin(seed * 13.7) * 2.5; // 2.5-7.5 sec
+  float phase = sin(seed * 47.3) * period;
+  float cycle = mod(t + phase, period) / period;
+  float fade = smoothstep(0.0, 0.3, cycle) * smoothstep(1.0, 0.5, cycle);
+
+  // Very soft distance falloff - wide gaussian-like
+  float dist = length(uv - center);
+  float radius = 0.55 / scale;
+  float falloff = exp(-dist * dist / (radius * radius));
+
+  return edge * fade * falloff;
+}
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / uRes;
+  float aspect = uRes.x / uRes.y;
+  vec2 uvA = vec2(uv.x * aspect, uv.y);
+  float t = uTime;
+
+  vec3 col = vec3(0.02, 0.0, 0.03); // near black with purple hint
+
+  // Purple/violet palette
+  vec3 purple1 = vec3(0.35, 0.1, 0.6);    // deep purple
+  vec3 purple2 = vec3(0.5, 0.15, 0.75);   // bright violet
+  vec3 purple3 = vec3(0.25, 0.05, 0.5);   // dark purple
+  vec3 purple4 = vec3(0.6, 0.2, 0.85);    // light violet
+  vec3 purple5 = vec3(0.4, 0.08, 0.55);   // medium purple
+  vec3 purple6 = vec3(0.3, 0.12, 0.65);   // blue-purple
+
+  // Light patches - different positions, sizes, timing
+  // Centers drift slowly over time
+  float p1 = lightPatch(uvA, t, 1.0,
+    vec2(0.35*aspect + sin(t*0.08)*0.2, 0.7 + cos(t*0.06)*0.1), 1.4);
+  float p2 = lightPatch(uvA, t, 2.0,
+    vec2(1.0*aspect + cos(t*0.06)*0.15, 0.3 + sin(t*0.09)*0.12), 1.2);
+  float p3 = lightPatch(uvA, t, 3.0,
+    vec2(0.65*aspect + sin(t*0.07)*0.2, 0.12 + cos(t*0.05)*0.08), 1.6);
+  float p4 = lightPatch(uvA, t, 4.0,
+    vec2(0.2*aspect + cos(t*0.09)*0.15, 0.5 + sin(t*0.06)*0.15), 1.3);
+  float p5 = lightPatch(uvA, t, 5.0,
+    vec2(0.85*aspect + sin(t*0.05)*0.2, 0.8 + cos(t*0.07)*0.1), 1.5);
+  float p6 = lightPatch(uvA, t, 6.0,
+    vec2(0.5*aspect + cos(t*0.07)*0.18, 0.45 + sin(t*0.08)*0.12), 1.1);
+  float p7 = lightPatch(uvA, t, 7.0,
+    vec2(1.2*aspect + sin(t*0.06)*0.15, 0.6 + cos(t*0.07)*0.12), 1.4);
+  float p8 = lightPatch(uvA, t, 8.0,
+    vec2(0.12*aspect + cos(t*0.08)*0.1, 0.2 + sin(t*0.06)*0.1), 1.7);
+  float p9 = lightPatch(uvA, t, 9.0,
+    vec2(0.55*aspect + sin(t*0.05)*0.25, 0.88 + cos(t*0.08)*0.08), 1.2);
+  float p10 = lightPatch(uvA, t, 10.0,
+    vec2(0.95*aspect + cos(t*0.09)*0.2, 0.15 + sin(t*0.06)*0.1), 1.5);
+
+  // Add each light with its color
+  col += purple1 * p1 * 1.2;
+  col += purple2 * p2 * 1.0;
+  col += purple3 * p3 * 1.4;
+  col += purple4 * p4 * 0.9;
+  col += purple5 * p5 * 1.1;
+  col += purple6 * p6 * 1.3;
+  col += purple2 * p7 * 1.0;
+  col += purple1 * p8 * 1.2;
+  col += purple4 * p9 * 0.8;
+  col += purple3 * p10 * 1.1;
+
+  // Subtle overall ambient noise to break uniformity
+  float ambient = fbm(uvA * 3.0 + t * 0.05) * 0.03;
+  col += vec3(0.15, 0.05, 0.25) * max(ambient, 0.0);
+
+  // Vignette
+  float vig = 1.0 - 0.3 * length(uv - 0.5);
+  col *= vig;
+
+  // Tone map
+  col = col / (col + 0.8);
+  col = pow(col, vec3(0.9));
+
+  gl_FragColor = vec4(col, 1.0);
+}
+`;
+
+function compileShader(src, type) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+    console.error(gl.getShaderInfoLog(s));
+    return null;
+  }
+  return s;
+}
+
+const vs = compileShader(vsSource, gl.VERTEX_SHADER);
+const fs = compileShader(fsSource, gl.FRAGMENT_SHADER);
+const prog = gl.createProgram();
+gl.attachShader(prog, vs);
+gl.attachShader(prog, fs);
+gl.linkProgram(prog);
+gl.useProgram(prog);
+
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+const aPos = gl.getAttribLocation(prog, 'aPos');
+gl.enableVertexAttribArray(aPos);
+gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+const uTime = gl.getUniformLocation(prog, 'uTime');
+const uRes = gl.getUniformLocation(prog, 'uRes');
+
+function render(t) {
+  gl.uniform1f(uTime, t * 0.001);
+  gl.uniform2f(uRes, canvas.width, canvas.height);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  requestAnimationFrame(render);
+}
+requestAnimationFrame(render);
+</script>
+</body>
+</html>
