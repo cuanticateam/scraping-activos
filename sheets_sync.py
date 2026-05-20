@@ -33,11 +33,11 @@ COLOR_ELIM_HDR  = {"red":0.55, "green":0.55, "blue":0.55}  # gris oscuro
 
 COLS = ["NOMBRE","DIRECCION","TIPO","FOLIO MATRICULA",
         "ESTADO CRONOGRAMA","ETAPA ACTUAL","PLAZO","CLIENTE","LINK",
-        "AREA m2","VALOR","FMI"]
+        "AREA m2","VALOR","FMI","ANOTACIONES"]
 CAMPOS = ["nombre","direccion","tipo","matricula",
           "estado_crono","etapa_actual","plazo","_c","link",
-          "area_m2","valor","fmi"]
-ANCHOS = [220,280,130,140,160,250,80,100,400,80,150,140]
+          "area_m2","valor","fmi","_anotaciones"]
+ANCHOS = [220,280,130,140,160,250,80,100,400,80,150,140,300]
 
 # Columnas que el script actualiza automaticamente (indice en CAMPOS)
 AUTO_CAMPOS = {"estado_crono", "etapa_actual", "plazo", "valor"}
