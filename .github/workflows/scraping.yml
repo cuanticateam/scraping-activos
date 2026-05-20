@@ -33,6 +33,7 @@ jobs:
           path: |
             datos_anteriores.json
             registro_cambios.json
+            ultimo_rescrape.txt
           key: scraping-data-${{ github.run_number }}
           restore-keys: |
             scraping-data-
@@ -41,6 +42,7 @@ jobs:
         run: |
           [ -f datos_anteriores.json ] || echo "{}" > datos_anteriores.json
           [ -f registro_cambios.json ] || echo "{}" > registro_cambios.json
+          [ -f ultimo_rescrape.txt ] || echo "" > ultimo_rescrape.txt
 
       - name: Ejecutar scraping completo
         env:

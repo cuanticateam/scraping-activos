@@ -2,9 +2,8 @@ name: Monitor de Correos
 
 on:
   schedule:
-    # 3 ejecuciones diarias (hora Colombia UTC-5)
+    # 2 ejecuciones diarias (hora Colombia UTC-5)
     - cron: '0 13 * * *'    #  8:00 AM COL
-    - cron: '0 17 * * *'    # 12:00 PM COL
     - cron: '0 23 * * *'    #  6:00 PM COL
   workflow_dispatch:         # Boton manual desde GitHub
 

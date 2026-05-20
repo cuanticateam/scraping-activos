@@ -28,6 +28,10 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DATOS_FILE   = os.path.join(SCRIPT_DIR, "datos_anteriores.json")
 CAMBIOS_FILE = os.path.join(SCRIPT_DIR, "registro_cambios.json")
 
+# Re-scrape completo cada N horas (para detectar cambios de cronograma)
+RESCRAPE_HORAS = 16
+RESCRAPE_FILE = os.path.join(SCRIPT_DIR, "ultimo_rescrape.txt")
+
 TIPOS = {
     1:"Apartaestudio",2:"Apartamento",3:"Bodega",4:"Casa",5:"Casa Lote",
     6:"Casa Recreo",7:"Centro Comercial",11:"Consultorio",13:"Hotel/Motel",
@@ -88,16 +92,70 @@ def construir_url(p):
     return f"{SITE_BASE}/es/inmueble/{pid}/{slug}"
 
 
-def scrape_detalles(propiedades, etiqueta=""):
+def necesita_rescrape_completo():
+    """Retorna True si toca re-scrapear todo (cada RESCRAPE_HORAS)."""
+    try:
+        with open(RESCRAPE_FILE, "r") as f:
+            ultimo = datetime.fromisoformat(f.read().strip())
+        return (datetime.now(COL_TZ) - ultimo).total_seconds() > RESCRAPE_HORAS * 3600
+    except Exception:
+        return True
+
+def marcar_rescrape():
+    with open(RESCRAPE_FILE, "w") as f:
+        f.write(datetime.now(COL_TZ).isoformat())
+
+
+def scrape_detalles(propiedades, etiqueta="", tab="", forzar_todo=False):
+    """Scrapea solo propiedades nuevas o con cambios en API. Reutiliza cache para el resto."""
+    anteriores = cargar_json(DATOS_FILE)
     resultados = {}
+    por_scrapear = []
+
+    if forzar_todo:
+        por_scrapear = list(propiedades)
+        print(f"  {etiqueta}Re-scrape completo: {len(por_scrapear)} propiedades")
+    else:
+        for prop in propiedades:
+            pid = str(prop["id"])
+            base = f"{tab}:{pid}" if tab else pid
+            prev = anteriores.get(base, {})
+
+            # Detectar si algo cambio en la API (precio, estado)
+            api_valor = formatear_precio(prop.get("base_sale_price") or prop.get("commercial_appraisal"))
+            prev_valor = prev.get("valor", "")
+
+            cambio_api = api_valor != prev_valor
+
+            es_nuevo = not prev or prev.get("_eliminado") == "true"
+            sin_nombre = not prev.get("nombre") or prev.get("nombre") == "Sin nombre"
+
+            if es_nuevo or sin_nombre or cambio_api:
+                por_scrapear.append(prop)
+            else:
+                # Reusar datos del cache
+                resultados[pid] = {
+                    "nombre": prev.get("nombre",""),
+                    "direccion": prev.get("direccion",""),
+                    "barrio": "",
+                    "estado_crono": prev.get("estado_crono",""),
+                    "etapa_actual": prev.get("etapa_actual",""),
+                    "plazo": prev.get("plazo","X"),
+                }
+
+    print(f"  {etiqueta}Cache: {len(resultados)} | Por scrapear: {len(por_scrapear)}")
+
+    if not por_scrapear:
+        return resultados
+
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         page = browser.new_context(
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36"
         ).new_page()
 
-        total = len(propiedades)
-        for i, prop in enumerate(propiedades, 1):
+        total = len(por_scrapear)
+        for i, prop in enumerate(por_scrapear, 1):
             pid = str(prop["id"])
             url = construir_url(prop)
             ref = (prop.get("reference") or "")[:50]
@@ -585,12 +643,21 @@ if __name__ == "__main__":
     props_ant = [p for p in todas if p.get("city_id") and 5000<=p["city_id"]<=5999 and p["city_id"]!=CITY_ID_MEDELLIN]
     print(f"  {len(props_ant)} propiedades")
 
-    # Scrape detalles con Playwright
+    # Scrape detalles con Playwright (optimizado: solo nuevos/cambiados, rescrape completo cada 16h)
+    forzar = necesita_rescrape_completo()
+    if forzar:
+        print("\n  >> Re-scrape completo (cada 16h)")
+    else:
+        print("\n  >> Scrape incremental (solo nuevos/cambiados)")
+
     print("\n[3/5] Visitando paginas de Medellin...")
-    det_med = scrape_detalles(props_med, "MED ")
+    det_med = scrape_detalles(props_med, "MED ", tab="med", forzar_todo=forzar)
 
     print("\n[4/5] Visitando paginas de Antioquia...")
-    det_ant = scrape_detalles(props_ant, "ANT ")
+    det_ant = scrape_detalles(props_ant, "ANT ", tab="ant", forzar_todo=forzar)
+
+    if forzar:
+        marcar_rescrape()
 
     # Procesar
     med = procesar(props_med, det_med)
