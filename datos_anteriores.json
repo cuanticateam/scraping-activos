@@ -1366,7 +1366,7 @@
   },
   "med:13750": {
     "nombre": "Sin nombre",
-    "direccion": "Calle 31A No. 65F - 12, Medellín, Belén, Antioquia",
+    "direccion": "",
     "tipo": "Garaje",
     "matricula": "001-1009024",
     "area_m2": "12.68",
@@ -1652,7 +1652,7 @@
   },
   "med:3297": {
     "nombre": "Sin nombre",
-    "direccion": "Calle 31A No. 65F - 12, Medellín, Belén, Antioquia",
+    "direccion": "",
     "tipo": "Apartamento",
     "matricula": "001-1021472",
     "area_m2": "106",
@@ -1665,7 +1665,7 @@
   },
   "med:3289": {
     "nombre": "Sin nombre",
-    "direccion": "Calle 31A No. 65F - 12, Medellín, Belén, Antioquia",
+    "direccion": "",
     "tipo": "Garaje",
     "matricula": "001-1021415",
     "area_m2": "17",
@@ -5734,7 +5734,7 @@
   },
   "ant:38121": {
     "nombre": "Sin nombre",
-    "direccion": "Calle 31A No. 65F - 12, Medellín, Belén, Antioquia",
+    "direccion": "",
     "tipo": "Finca",
     "matricula": "029-5400",
     "area_m2": "",
@@ -5747,7 +5747,7 @@
   },
   "ant:38120": {
     "nombre": "Sin nombre",
-    "direccion": "Calle 31A No. 65F - 12, Medellín, Belén, Antioquia",
+    "direccion": "",
     "tipo": "Finca",
     "matricula": "029-666",
     "area_m2": "",
@@ -5760,7 +5760,7 @@
   },
   "ant:38119": {
     "nombre": "Sin nombre",
-    "direccion": "Calle 31A No. 65F - 12, Medellín, Belén, Antioquia",
+    "direccion": "",
     "tipo": "Finca",
     "matricula": "029-665",
     "area_m2": "",
@@ -5773,7 +5773,7 @@
   },
   "ant:38118": {
     "nombre": "Sin nombre",
-    "direccion": "Calle 31A No. 65F - 12, Medellín, Belén, Antioquia",
+    "direccion": "",
     "tipo": "Finca",
     "matricula": "029-664",
     "area_m2": "",
@@ -5786,7 +5786,7 @@
   },
   "ant:38117": {
     "nombre": "Sin nombre",
-    "direccion": "Calle 31A No. 65F - 12, Medellín, Belén, Antioquia",
+    "direccion": "",
     "tipo": "Finca",
     "matricula": "029-663",
     "area_m2": "",
@@ -5799,7 +5799,7 @@
   },
   "ant:38116": {
     "nombre": "Sin nombre",
-    "direccion": "Calle 31A No. 65F - 12, Medellín, Belén, Antioquia",
+    "direccion": "",
     "tipo": "Tipo 27",
     "matricula": "028-16865",
     "area_m2": "",
@@ -5812,7 +5812,7 @@
   },
   "ant:38114": {
     "nombre": "Sin nombre",
-    "direccion": "Calle 31A No. 65F - 12, Medellín, Belén, Antioquia",
+    "direccion": "",
     "tipo": "Finca",
     "matricula": "028-16613",
     "area_m2": "",
@@ -5825,7 +5825,7 @@
   },
   "ant:38113": {
     "nombre": "Sin nombre",
-    "direccion": "Calle 31A No. 65F - 12, Medellín, Belén, Antioquia",
+    "direccion": "",
     "tipo": "Lote",
     "matricula": "028-15774",
     "area_m2": "",
@@ -5838,7 +5838,7 @@
   },
   "ant:38106": {
     "nombre": "Sin nombre",
-    "direccion": "Calle 31A No. 65F - 12, Medellín, Belén, Antioquia",
+    "direccion": "",
     "tipo": "Finca",
     "matricula": "017-39077",
     "area_m2": "",
@@ -5864,7 +5864,7 @@
   },
   "ant:38103": {
     "nombre": "Sin nombre",
-    "direccion": "Calle 31A No. 65F - 12, Medellín, Belén, Antioquia",
+    "direccion": "",
     "tipo": "Lote",
     "matricula": "015-58628",
     "area_m2": "",
@@ -5877,7 +5877,7 @@
   },
   "ant:38101": {
     "nombre": "Sin nombre",
-    "direccion": "Calle 31A No. 65F - 12, Medellín, Belén, Antioquia",
+    "direccion": "",
     "tipo": "Tipo 19",
     "matricula": "015-3634",
     "area_m2": "",
@@ -5890,7 +5890,7 @@
   },
   "ant:38100": {
     "nombre": "Sin nombre",
-    "direccion": "Calle 31A No. 65F - 12, Medellín, Belén, Antioquia",
+    "direccion": "",
     "tipo": "Lote",
     "matricula": "015-56298",
     "area_m2": "",
@@ -5903,7 +5903,7 @@
   },
   "ant:38096": {
     "nombre": "Sin nombre",
-    "direccion": "Calle 31A No. 65F - 12, Medellín, Belén, Antioquia",
+    "direccion": "",
     "tipo": "Finca",
     "matricula": "015-3124",
     "area_m2": "",
@@ -5916,7 +5916,7 @@
   },
   "ant:38095": {
     "nombre": "Sin nombre",
-    "direccion": "Calle 31A No. 65F - 12, Medellín, Belén, Antioquia",
+    "direccion": "",
     "tipo": "Finca",
     "matricula": "015-45456",
     "area_m2": "",
@@ -5929,7 +5929,7 @@
   },
   "ant:38094": {
     "nombre": "Sin nombre",
-    "direccion": "Calle 31A No. 65F - 12, Medellín, Belén, Antioquia",
+    "direccion": "",
     "tipo": "Finca",
     "matricula": "015-1165",
     "area_m2": "",
@@ -5942,7 +5942,7 @@
   },
   "ant:38091": {
     "nombre": "Sin nombre",
-    "direccion": "Calle 31A No. 65F - 12, Medellín, Belén, Antioquia",
+    "direccion": "",
     "tipo": "Tipo 19",
     "matricula": "015-44951",
     "area_m2": "",
@@ -5955,7 +5955,7 @@
   },
   "ant:38089": {
     "nombre": "Sin nombre",
-    "direccion": "Calle 31A No. 65F - 12, Medellín, Belén, Antioquia",
+    "direccion": "",
     "tipo": "Tipo 19",
     "matricula": "015-36454",
     "area_m2": "",
@@ -5968,7 +5968,7 @@
   },
   "ant:38088": {
     "nombre": "Sin nombre",
-    "direccion": "Calle 31A No. 65F - 12, Medellín, Belén, Antioquia",
+    "direccion": "",
     "tipo": "Finca",
     "matricula": "015-3123",
     "area_m2": "",
@@ -5981,7 +5981,7 @@
   },
   "ant:38080": {
     "nombre": "Sin nombre",
-    "direccion": "Calle 31A No. 65F - 12, Medellín, Belén, Antioquia",
+    "direccion": "",
     "tipo": "Finca",
     "matricula": "015-737",
     "area_m2": "",
@@ -5994,7 +5994,7 @@
   },
   "ant:38078": {
     "nombre": "Sin nombre",
-    "direccion": "Calle 31A No. 65F - 12, Medellín, Belén, Antioquia",
+    "direccion": "",
     "tipo": "Tipo 19",
     "matricula": "015-7686",
     "area_m2": "",
@@ -6007,7 +6007,7 @@
   },
   "ant:38077": {
     "nombre": "Sin nombre",
-    "direccion": "Calle 31A No. 65F - 12, Medellín, Belén, Antioquia",
+    "direccion": "",
     "tipo": "Finca",
     "matricula": "015-2825",
     "area_m2": "",
@@ -6020,7 +6020,7 @@
   },
   "ant:38073": {
     "nombre": "Sin nombre",
-    "direccion": "Calle 31A No. 65F - 12, Medellín, Belén, Antioquia",
+    "direccion": "",
     "tipo": "Tipo 19",
     "matricula": "001-775837",
     "area_m2": "",
@@ -6046,7 +6046,7 @@
   },
   "ant:38071": {
     "nombre": "Sin nombre",
-    "direccion": "Calle 31A No. 65F - 12, Medellín, Belén, Antioquia",
+    "direccion": "",
     "tipo": "Finca",
     "matricula": "015-7574",
     "area_m2": "",
@@ -6059,7 +6059,7 @@
   },
   "ant:38070": {
     "nombre": "Sin nombre",
-    "direccion": "Calle 31A No. 65F - 12, Medellín, Belén, Antioquia",
+    "direccion": "",
     "tipo": "Lote",
     "matricula": "001-708487",
     "area_m2": "",
@@ -6072,7 +6072,7 @@
   },
   "ant:38069": {
     "nombre": "Sin nombre",
-    "direccion": "Calle 31A No. 65F - 12, Medellín, Belén, Antioquia",
+    "direccion": "",
     "tipo": "Finca",
     "matricula": "015-6188",
     "area_m2": "",
@@ -6085,7 +6085,7 @@
   },
   "ant:38068": {
     "nombre": "Sin nombre",
-    "direccion": "Calle 31A No. 65F - 12, Medellín, Belén, Antioquia",
+    "direccion": "",
     "tipo": "Finca",
     "matricula": "001-195279",
     "area_m2": "",
@@ -6098,7 +6098,7 @@
   },
   "ant:38067": {
     "nombre": "Sin nombre",
-    "direccion": "Calle 31A No. 65F - 12, Medellín, Belén, Antioquia",
+    "direccion": "",
     "tipo": "Finca",
     "matricula": "001-79344",
     "area_m2": "",

@@ -32,12 +32,12 @@ COLOR_ELIMINADO = {"red":0.85, "green":0.85, "blue":0.85}  # gris claro
 COLOR_ELIM_HDR  = {"red":0.55, "green":0.55, "blue":0.55}  # gris oscuro
 
 COLS = ["NOMBRE","DIRECCION","TIPO","FOLIO MATRICULA",
-        "ESTADO CRONOGRAMA","ETAPA ACTUAL","PLAZO","CLIENTE","LINK",
+        "ESTADO CRONOGRAMA","ETAPA ACTUAL","PLAZO","LINK",
         "AREA m2","VALOR","FMI","ANOTACIONES"]
 CAMPOS = ["nombre","direccion","tipo","matricula",
-          "estado_crono","etapa_actual","plazo","_c","link",
+          "estado_crono","etapa_actual","plazo","link",
           "area_m2","valor","fmi","_anotaciones"]
-ANCHOS = [220,280,130,140,160,250,80,100,400,80,150,140,300]
+ANCHOS = [220,280,130,140,160,250,80,80,80,150,140,300]
 
 # Columnas que el script actualiza automaticamente (indice en CAMPOS)
 AUTO_CAMPOS = {"estado_crono", "etapa_actual", "plazo", "valor"}
@@ -157,9 +157,16 @@ def _escribir_pestaña(ws, titulo, inmuebles, cambios, tab):
     manual_por_link = {}  # link -> fila completa
     if len(existing) > 2:
         for row in existing[2:]:  # saltar titulo y encabezados
-            link = row[IDX_LINK] if IDX_LINK < len(row) else ""
-            if link:
-                manual_por_link[link] = row
+            # Buscar la columna LINK en los encabezados existentes
+            link_val = ""
+            for ci, cell in enumerate(row):
+                if cell and cell.startswith("http"):
+                    link_val = cell
+                    break
+            if not link_val and IDX_LINK < len(row):
+                link_val = row[IDX_LINK]
+            if link_val:
+                manual_por_link[link_val] = row
 
     # ── Construir filas nuevas preservando columnas manuales ──
     filas = []
@@ -176,22 +183,32 @@ def _escribir_pestaña(ws, titulo, inmuebles, cambios, tab):
                 # Siempre usar valor del scraping
                 val = item.get(campo, "")
                 fila.append(str(val) if val is not None else "")
+            elif campo == "link":
+                # Link como HYPERLINK para clic directo
+                if link:
+                    fila.append(f'=HYPERLINK("{link}","Ver")')
+                else:
+                    fila.append("")
+            elif campo == "nombre":
+                # Permitir sobreescribir "Sin nombre"
+                if prev and col_idx < len(prev) and prev[col_idx] and prev[col_idx] != "Sin nombre":
+                    fila.append(prev[col_idx])
+                else:
+                    val = item.get(campo, "")
+                    fila.append(str(val) if val is not None else "")
             elif prev and col_idx < len(prev) and prev[col_idx]:
                 # Preservar valor manual existente
                 fila.append(prev[col_idx])
             else:
                 # Propiedad nueva: usar valor del scraping
-                if campo == "_c":
-                    fila.append("Grupo NBC")
-                else:
-                    val = item.get(campo, "")
-                    fila.append(str(val) if val is not None else "")
+                val = item.get(campo, "")
+                fila.append(str(val) if val is not None else "")
         filas.append(fila)
 
     # ── Escribir (borrar y reescribir para manejar filas eliminadas) ──
     ws.clear()
     if filas:
-        ws.update(filas, value_input_option="RAW")
+        ws.update(filas, value_input_option="USER_ENTERED")
 
     total_filas = len(filas)
     try:
@@ -301,7 +318,7 @@ COLS_ELIM = ["ORIGEN","NOMBRE","DIRECCION","TIPO","FOLIO MATRICULA",
              "VALOR","FECHA ELIMINADO","LINK","ANOTACIONES"]
 CAMPOS_ELIM = ["_origen","nombre","direccion","tipo","matricula",
                "valor","_fecha_eliminado","link","_anotaciones"]
-ANCHOS_ELIM = [90,220,280,130,140,150,120,400,300]
+ANCHOS_ELIM = [90,220,280,130,140,150,120,80,300]
 
 
 def _escribir_eliminados(ws, todos_elim):
@@ -335,13 +352,18 @@ def _escribir_eliminados(ws, todos_elim):
                     fila.append(prev[col_idx])
                 else:
                     fila.append("")
+            elif campo == "link":
+                if link:
+                    fila.append(f'=HYPERLINK("{link}","Ver")')
+                else:
+                    fila.append("")
             else:
                 fila.append(str(elim.get(campo, "")))
         filas.append(fila)
 
     ws.clear()
     if filas:
-        ws.update(filas, value_input_option="RAW")
+        ws.update(filas, value_input_option="USER_ENTERED")
 
     total_filas = len(filas)
     try:

@@ -201,7 +201,23 @@ def extraer_nombre_edificio(lineas, barrio_fallback):
             nombre = m.group(1).strip()
             if 3 < len(nombre) < 50:
                 return nombre
-    return barrio_fallback or "Sin nombre"
+    return barrio_fallback or ""
+
+
+def extraer_nombre_referencia(reference):
+    """Extrae nombre del campo reference de la API.
+    Ej: 'Finca en Venta - Ebejicó, Antioquia' -> 'Finca Ebejicó'
+    """
+    if not reference:
+        return ""
+    m = re.match(r"^(.+?)\s+en\s+[Vv]enta\s*[-–]\s*(.+?)(?:,\s*\w+)?$", reference)
+    if m:
+        tipo = m.group(1).strip().title()
+        municipio = m.group(2).strip()
+        municipio = re.sub(r"\s*-\s*$", "", municipio).strip()
+        if municipio and tipo:
+            return f"{tipo} {municipio}"
+    return ""
 
 
 def extraer_cronograma(lineas):
@@ -354,9 +370,15 @@ def procesar(props_api, detalles):
         if estado_cod.upper() == "VENDIDO":
             etapa = "VENDIDO"
 
+        nombre = det.get("nombre","") or det.get("barrio","") or ""
+        if not nombre:
+            nombre = extraer_nombre_referencia(p.get("reference",""))
+        if not nombre:
+            nombre = p.get("reference","") or "Sin nombre"
+
         resultado.append({
             "_id": pid,
-            "nombre":       det.get("nombre") or det.get("barrio") or p.get("reference",""),
+            "nombre":       nombre,
             "direccion":    det.get("direccion",""),
             "tipo":         TIPOS.get(p.get("property_type_id"), ""),
             "matricula":    p.get("matricula_number", ""),
