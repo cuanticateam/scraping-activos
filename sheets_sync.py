@@ -103,11 +103,11 @@ def sync_to_sheets(inmuebles_med, inmuebles_ant, cambios_med, cambios_ant,
 
     print("  Escribiendo Medellin...")
     _escribir_pestaña(ws_med, "LISTADO DE VENTA MASIVA - MEDELLIN",
-                      inmuebles_med, cambios_med, "med", eliminados_med or [])
+                      inmuebles_med, cambios_med, "med")
 
     print("  Escribiendo Antioquia...")
     _escribir_pestaña(ws_ant, "LISTADO DE VENTA MASIVA - ANTIOQUIA (sin Medellin)",
-                      inmuebles_ant, cambios_ant, "ant", eliminados_ant or [])
+                      inmuebles_ant, cambios_ant, "ant")
 
     # Bello y La Pintada
     if inmuebles_bello is not None:
@@ -121,6 +121,18 @@ def sync_to_sheets(inmuebles_med, inmuebles_ant, cambios_med, cambios_ant,
         print("  Escribiendo La Pintada...")
         _escribir_pestaña(ws_pin, "LISTADO DE VENTA MASIVA - LA PINTADA",
                           inmuebles_pintada, cambios_pintada or {}, "pin")
+
+    # Pestaña Eliminados (separada)
+    todos_elim = []
+    for e in (eliminados_med or []):
+        todos_elim.append(("MED", e))
+    for e in (eliminados_ant or []):
+        todos_elim.append(("ANT", e))
+    if todos_elim:
+        n_elim = len(todos_elim)
+        ws_elim = _obtener_hoja(sh, hojas_existentes, "Eliminados", n_elim + 5)
+        print(f"  Escribiendo Eliminados ({n_elim})...")
+        _escribir_eliminados(ws_elim, todos_elim)
 
     print("  Escribiendo Leyenda e Info...")
     ws_ley.clear()
@@ -139,7 +151,7 @@ def _obtener_hoja(sh, existentes, nombre, filas_min):
     return sh.add_worksheet(title=nombre, rows=max(filas_min + 5, 10), cols=len(COLS))
 
 
-def _escribir_pestaña(ws, titulo, inmuebles, cambios, tab, eliminados=None):
+def _escribir_pestaña(ws, titulo, inmuebles, cambios, tab):
     # ── Leer datos existentes para preservar ediciones manuales ──
     existing = ws.get_all_values()
     manual_por_link = {}  # link -> fila completa
@@ -175,22 +187,6 @@ def _escribir_pestaña(ws, titulo, inmuebles, cambios, tab, eliminados=None):
                     val = item.get(campo, "")
                     fila.append(str(val) if val is not None else "")
         filas.append(fila)
-
-    n_activos = len(inmuebles)
-
-    # ── Agregar eliminados al final ──
-    if eliminados:
-        filas.append(["ELIMINADOS DE LA PAGINA"] + [""] * (len(COLS) - 1))
-        for elim in eliminados:
-            fila = []
-            for campo in CAMPOS:
-                if campo == "estado_crono":
-                    fila.append("ELIMINADO")
-                elif campo == "etapa_actual":
-                    fila.append(elim.get("_fecha_eliminado", "")[:10])
-                else:
-                    fila.append(str(elim.get(campo, "")))
-            filas.append(fila)
 
     # ── Escribir (borrar y reescribir para manejar filas eliminadas) ──
     ws.clear()
@@ -242,24 +238,6 @@ def _escribir_pestaña(ws, titulo, inmuebles, cambios, tab, eliminados=None):
             if campo in AUTO_CAMPOS and clave_cambio in cambios:
                 requests.append(_formato_celdas(ws_id, fila_idx, j, fila_idx+1, j+1,
                                                  COLOR_CAMBIO, fg, False, 10))
-
-    # Formato seccion eliminados
-    if eliminados:
-        sep_idx = n_activos + 2  # fila del separador "ELIMINADOS DE LA PAGINA"
-        # Merge y formato del separador
-        requests.append({
-            "mergeCells": {
-                "range": _rango(ws_id, sep_idx, 0, sep_idx + 1, len(COLS)),
-                "mergeType": "MERGE_ALL"
-            }
-        })
-        requests.append(_formato_celdas(ws_id, sep_idx, 0, sep_idx + 1, len(COLS),
-                                         COLOR_ELIM_HDR, COLOR_BLANCO, True, 11))
-        # Formato filas eliminadas
-        for i in range(len(eliminados)):
-            fila_idx = sep_idx + 1 + i
-            requests.append(_formato_celdas(ws_id, fila_idx, 0, fila_idx + 1, len(COLS),
-                                             COLOR_ELIMINADO, None, False, 10))
 
     # Wrap text en columna LINK
     requests.append({
@@ -313,6 +291,140 @@ def _escribir_pestaña(ws, titulo, inmuebles, cambios, tab, eliminados=None):
                 except Exception as e:
                     if "429" in str(e) and intento < 2:
                         print(f"    Rate limit, esperando {30*(intento+1)}s...")
+                        time.sleep(30 * (intento + 1))
+                    else:
+                        raise
+            time.sleep(5)
+
+
+COLS_ELIM = ["ORIGEN","NOMBRE","DIRECCION","TIPO","FOLIO MATRICULA",
+             "VALOR","FECHA ELIMINADO","LINK","ANOTACIONES"]
+CAMPOS_ELIM = ["_origen","nombre","direccion","tipo","matricula",
+               "valor","_fecha_eliminado","link","_anotaciones"]
+ANCHOS_ELIM = [90,220,280,130,140,150,120,400,300]
+
+
+def _escribir_eliminados(ws, todos_elim):
+    """Escribe la pestaña Eliminados con todas las propiedades eliminadas."""
+    # Leer datos existentes para preservar anotaciones manuales
+    existing = ws.get_all_values()
+    manual_por_link = {}
+    if len(existing) > 2:
+        idx_link_elim = CAMPOS_ELIM.index("link")
+        for row in existing[2:]:
+            link = row[idx_link_elim] if idx_link_elim < len(row) else ""
+            if link:
+                manual_por_link[link] = row
+
+    filas = []
+    filas.append(["PROPIEDADES ELIMINADAS DE LA PAGINA"] + [""] * (len(COLS_ELIM) - 1))
+    filas.append(COLS_ELIM)
+
+    for origen, elim in todos_elim:
+        link = str(elim.get("link", ""))
+        prev = manual_por_link.get(link)
+        fila = []
+        for col_idx, campo in enumerate(CAMPOS_ELIM):
+            if campo == "_origen":
+                fila.append(origen)
+            elif campo == "_fecha_eliminado":
+                fila.append(elim.get("_fecha_eliminado", "")[:10])
+            elif campo == "_anotaciones":
+                # Preservar anotacion manual
+                if prev and col_idx < len(prev) and prev[col_idx]:
+                    fila.append(prev[col_idx])
+                else:
+                    fila.append("")
+            else:
+                fila.append(str(elim.get(campo, "")))
+        filas.append(fila)
+
+    ws.clear()
+    if filas:
+        ws.update(filas, value_input_option="RAW")
+
+    total_filas = len(filas)
+    try:
+        if ws.row_count < total_filas:
+            ws.resize(rows=total_filas + 2, cols=len(COLS_ELIM))
+    except: pass
+
+    # Formato
+    requests = []
+    ws_id = ws.id
+
+    # Merge titulo
+    requests.append({
+        "mergeCells": {
+            "range": _rango(ws_id, 0, 0, 1, len(COLS_ELIM)),
+            "mergeType": "MERGE_ALL"
+        }
+    })
+    requests.append(_formato_celdas(ws_id, 0, 0, 1, len(COLS_ELIM),
+                                     COLOR_ELIM_HDR, COLOR_BLANCO, True, 13))
+
+    # Encabezados
+    requests.append(_formato_celdas(ws_id, 1, 0, 2, len(COLS_ELIM),
+                                     COLOR_HEADER, COLOR_BLANCO, True, 10))
+
+    # Filas de datos
+    for i in range(len(todos_elim)):
+        fila_idx = i + 2
+        requests.append(_formato_celdas(ws_id, fila_idx, 0, fila_idx + 1, len(COLS_ELIM),
+                                         COLOR_ELIMINADO, None, False, 10))
+
+    # Wrap text en columna LINK
+    idx_link_elim = CAMPOS_ELIM.index("link")
+    requests.append({
+        "repeatCell": {
+            "range": _rango(ws_id, 2, idx_link_elim, total_filas, idx_link_elim + 1),
+            "cell": {"userEnteredFormat": {"wrapStrategy": "WRAP"}},
+            "fields": "userEnteredFormat.wrapStrategy"
+        }
+    })
+
+    # Anchos
+    for j, ancho in enumerate(ANCHOS_ELIM):
+        requests.append({
+            "updateDimensionProperties": {
+                "range": {"sheetId": ws_id, "dimension": "COLUMNS",
+                          "startIndex": j, "endIndex": j+1},
+                "properties": {"pixelSize": ancho},
+                "fields": "pixelSize"
+            }
+        })
+
+    # Congelar filas
+    requests.append({
+        "updateSheetProperties": {
+            "properties": {
+                "sheetId": ws_id,
+                "gridProperties": {"frozenRowCount": 2}
+            },
+            "fields": "gridProperties.frozenRowCount"
+        }
+    })
+
+    # Filtros
+    requests.append({"clearBasicFilter": {"sheetId": ws_id}})
+    requests.append({
+        "setBasicFilter": {
+            "filter": {
+                "range": _rango(ws_id, 1, 0, total_filas, len(COLS_ELIM))
+            }
+        }
+    })
+
+    if requests:
+        for chunk_start in range(0, len(requests), 100):
+            chunk = requests[chunk_start:chunk_start+100]
+            for intento in range(3):
+                try:
+                    ws.spreadsheet.batch_update({"requests": chunk})
+                    break
+                except Exception as e:
+                    if "429" in str(e) and intento < 2:
+                        print(f"    Rate limit (eliminados), esperando {30*(intento+1)}s...")
                         time.sleep(30 * (intento + 1))
                     else:
                         raise
