@@ -380,6 +380,7 @@ def detectar_cambios(inmuebles_nuevos, pestaña):
 
     resumen = []
     cambios_ahora = {}  # solo cambios de esta ejecucion
+    ids_nuevos = set()   # IDs de inmuebles nuevos (para ordenar)
 
     ids_actuales = set()
 
@@ -392,6 +393,7 @@ def detectar_cambios(inmuebles_nuevos, pestaña):
         # Inmueble NUEVO (o que vuelve despues de ser eliminado)
         es_nuevo = not prev or prev.get("_eliminado") == "true"
         if es_nuevo:
+            ids_nuevos.add(pid)
             resumen.append({
                 "tipo": "NUEVO", "tab": pestaña.upper(),
                 "nombre": item.get("nombre","?"),
@@ -458,7 +460,7 @@ def detectar_cambios(inmuebles_nuevos, pestaña):
     guardar_datos(anteriores)
     guardar_cambios(registro)
 
-    return cambios_ahora, resumen
+    return cambios_ahora, resumen, ids_nuevos
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -700,8 +702,12 @@ if __name__ == "__main__":
 
     # ── Detectar cambios ──
     print("\n[5/5] Detectando cambios y actualizando Google Sheets...")
-    cambios_med, resumen_med = detectar_cambios(inmuebles_med, "med")
-    cambios_ant, resumen_ant = detectar_cambios(inmuebles_ant, "ant")
+    cambios_med, resumen_med, nuevos_med = detectar_cambios(inmuebles_med, "med")
+    cambios_ant, resumen_ant, nuevos_ant = detectar_cambios(inmuebles_ant, "ant")
+
+    # Ordenar: nuevos arriba, existentes abajo
+    inmuebles_med.sort(key=lambda x: (0 if str(x["_id"]) in nuevos_med else 1))
+    inmuebles_ant.sort(key=lambda x: (0 if str(x["_id"]) in nuevos_ant else 1))
     todos_cambios = resumen_med + resumen_ant
 
     if todos_cambios:

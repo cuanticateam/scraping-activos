@@ -398,6 +398,7 @@ def detectar_cambios(inmuebles, tab):
     limite = (datetime.now(COL_TZ) - timedelta(days=DIAS_ROJO)).isoformat()
     resumen = []
     cambios_ahora = {}
+    ids_nuevos = set()
 
     ids_actuales = set()
 
@@ -410,6 +411,7 @@ def detectar_cambios(inmuebles, tab):
         # Inmueble NUEVO (o que vuelve despues de ser eliminado)
         es_nuevo = not prev or prev.get("_eliminado") == "true"
         if es_nuevo:
+            ids_nuevos.add(pid)
             resumen.append({
                 "tipo": "NUEVO", "tab": tab.upper(),
                 "nombre": item.get("nombre","?"),
@@ -470,7 +472,7 @@ def detectar_cambios(inmuebles, tab):
 
     guardar_json(DATOS_FILE, anteriores)
     guardar_json(CAMBIOS_FILE, registro)
-    return cambios_ahora, resumen
+    return cambios_ahora, resumen, ids_nuevos
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -665,9 +667,13 @@ if __name__ == "__main__":
 
     # Detectar cambios
     print("\n[5/5] Detectando cambios y actualizando Google Sheets...")
-    cm, rm = detectar_cambios(med, "med")
-    ca, ra = detectar_cambios(ant, "ant")
+    cm, rm, nm = detectar_cambios(med, "med")
+    ca, ra, na = detectar_cambios(ant, "ant")
     todos_cambios = rm + ra
+
+    # Ordenar: nuevos arriba
+    med.sort(key=lambda x: (0 if str(x["_id"]) in nm else 1))
+    ant.sort(key=lambda x: (0 if str(x["_id"]) in na else 1))
 
     if todos_cambios:
         print(f"\n  *** {len(todos_cambios)} ALERTAS ***")

@@ -924,7 +924,7 @@
   },
   "med:31567": {
     "nombre": "Sin nombre",
-    "direccion": "",
+    "direccion": "CALLE 106 B # 66 - 03 INT. 0101 (DIRECCION CATASTRAL). Direccion anterior: CALLE 106B 66-03 CASA TIPO 2. URBANIZACION PARQUE DE GRATAMIRA, MEDELLIN, ANTIOQUIA",
     "tipo": "Apartamento",
     "matricula": "01N-5036487",
     "area_m2": "145",
@@ -937,7 +937,7 @@
   },
   "med:31557": {
     "nombre": "Sin nombre",
-    "direccion": "",
+    "direccion": "CALLE 106B # 66 - 03 INT 99063, MEDELLIN, ANTIOQUIA",
     "tipo": "Garaje",
     "matricula": "01N-5036524",
     "area_m2": "11",
@@ -2302,7 +2302,7 @@
   },
   "ant:5802": {
     "nombre": "Sin nombre",
-    "direccion": "",
+    "direccion": "LT DIEZ, Vereda ENTRERRIOS, Municipio ENTRERRIOS, Departamento ANTIOQUIA, ENTRERRIOS, ANTIOQUIA",
     "tipo": "Lote",
     "matricula": "025-30418",
     "area_m2": "185",
@@ -3446,7 +3446,7 @@
   },
   "med:34539": {
     "nombre": "Sin nombre",
-    "direccion": "",
+    "direccion": "CARRERA 55 # 46 - 72 INT. 0312 (DIRECCION CATASTRAL) / CARRERA 55 TENERIFE 46-72 PASAJE COMERCIAL ORIENTE P.H 3 PISO BODEGA 312, MEDELLIN, ANTIOQUIA",
     "tipo": "Bodega",
     "matricula": "001-1256180",
     "area_m2": "8.7",
@@ -3459,7 +3459,7 @@
   },
   "med:34535": {
     "nombre": "Sin nombre",
-    "direccion": "",
+    "direccion": "CARRERA 55 # 46 - 72 INT. 0121 (DIRECCION CATASTRAL) - PASAJE COMERCIAL ORIENTE P.H 1 PISO LOCAL 121, MEDELLIN, ANTIOQUIA",
     "tipo": "Local Comercial",
     "matricula": "001-1256146",
     "area_m2": "5.65",
@@ -3472,7 +3472,7 @@
   },
   "med:34530": {
     "nombre": "Sin nombre",
-    "direccion": "",
+    "direccion": "CARRERA 55 # 46 - 72 INT. 0120 (DIRECCION CATASTRAL) / CARRERA 55 TENERIFE 46-72 PASAJE COMERCIAL ORIENTE P.H 1 PISO LOCAL 120, MEDELLIN, ANTIOQUIA",
     "tipo": "Local Comercial",
     "matricula": "001-1256145",
     "area_m2": "5.65",
@@ -3485,7 +3485,7 @@
   },
   "med:34523": {
     "nombre": "Sin nombre",
-    "direccion": "",
+    "direccion": "CARRERA 55 # 46 - 72 INT. 0117 (DIRECCION CATASTRAL), ANTES CARRERA 55 TENERIFE 46-72 PASAJE COMERCIAL ORIENTE P.H 1 PISO LOCAL 117, MEDELLIN, ANTIOQUIA",
     "tipo": "Local Comercial",
     "matricula": "001-1256142",
     "area_m2": "5.65",
@@ -3940,7 +3940,7 @@
   },
   "med:31392": {
     "nombre": "Sin nombre",
-    "direccion": "",
+    "direccion": "CALLE 43 # 70A - 22, MEDELLIN, ANTIOQUIA",
     "tipo": "Local Comercial",
     "matricula": "001-311332",
     "area_m2": "",
@@ -3953,7 +3953,7 @@
   },
   "med:31367": {
     "nombre": "Sin nombre",
-    "direccion": "",
+    "direccion": "CARRERA 34 # 16A SUR-185 INTERIOR 0403 (DIRECCION CATASTRAL). Direccion anterior: CARRERA 34 16 A 185 S ......4. PISO APTO 403 CONJUNTO RESIDENCIAL FONTANAR 1 ETAPA, MEDELLIN, ANTIOQUIA",
     "tipo": "Apartamento",
     "matricula": "001-490161",
     "area_m2": "212",
@@ -5149,7 +5149,7 @@
   },
   "med:8138": {
     "nombre": "Sin nombre",
-    "direccion": "CARRERA 25 A # 1A SUR-45 INTERIOR 2228, MEDELLIN, ANTIOQUIA",
+    "direccion": "",
     "tipo": "Oficina",
     "matricula": "001-903211",
     "area_m2": "17.05",
@@ -5513,7 +5513,7 @@
   },
   "med:3386": {
     "nombre": "Sin nombre",
-    "direccion": "CALLE 47 # 43 - 22 INT. 0106 (DIRECCION CATASTRAL), EDIFICIO ALIANZA COMERCIAL P.H. PRIMER PISO LOCAL 6, MEDELLIN, ANTIOQUIA",
+    "direccion": "",
     "tipo": "Local Comercial",
     "matricula": "001-638765",
     "area_m2": "119.2",
@@ -5526,7 +5526,7 @@
   },
   "med:2509": {
     "nombre": "Sin nombre",
-    "direccion": "CARRERA 43 A # 6 SUR-15 INT. 0115 (DIRECCION CATASTRAL). Direccion anterior: CARRERA 43-A 6-15 S ...CENTRO COMERCIAL OVIEDO LOCAL N. 115 MEZANINE BLOQUE A, MEDELLIN, ANTIOQUIA",
+    "direccion": "",
     "tipo": "Local Comercial",
     "matricula": "001-219812",
     "area_m2": "54",
@@ -6540,7 +6540,7 @@
   },
   "ant:26712": {
     "nombre": "Sin nombre",
-    "direccion": "BR LA PLAYA, Vereda Ciudad Bolívar, Ciudad Bolívar, Antioquia, Ciudad Bolívar, Antioquia",
+    "direccion": "",
     "tipo": "Casa",
     "matricula": "005-15890",
     "area_m2": "133.5",
@@ -6553,7 +6553,7 @@
   },
   "ant:26116": {
     "nombre": "Sin nombre",
-    "direccion": "FINCA EL REMOLINO, VEREDA PUERTO VALDIVIA, VALDIVIA, ANTIOQUIA, VALDIVIA, ANTIOQUIA",
+    "direccion": "",
     "tipo": "Finca",
     "matricula": "037-5884",
     "area_m2": "656",
@@ -6566,7 +6566,7 @@
   },
   "ant:25170": {
     "nombre": "Sin nombre",
-    "direccion": "LOTE DE TERRENO JARDINES MONTESACRO LOTE 2 DOBLE GRUPO 189 SECTOR 13, ITAGUI, ANTIOQUIA",
+    "direccion": "",
     "tipo": "Lote",
     "matricula": "001-714907",
     "area_m2": "6",
@@ -7047,7 +7047,7 @@
   },
   "ant:16044": {
     "nombre": "Sin nombre",
-    "direccion": "SIN DIRECCION, Vereda PEÑOLCITO, PEÑOL, ANTIOQUIA",
+    "direccion": "",
     "tipo": "Lote",
     "matricula": "018-28851",
     "area_m2": "128",
@@ -7385,7 +7385,7 @@
   },
   "ant:4157": {
     "nombre": "Sin nombre",
-    "direccion": "",
+    "direccion": "CALLE 36D SUR # 27A-105 CONJ. INMOBILIARIO CITY PLAZA P.H. - ETAPA 1 NIVEL 2 LOCAL 291, ENVIGADO, ANTIOQUIA",
     "tipo": "Local Comercial",
     "matricula": "001-1081606",
     "area_m2": "65.81",
