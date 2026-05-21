@@ -220,6 +220,13 @@ def _escribir_pestaña(ws, titulo, inmuebles, cambios, tab):
     requests = []
     ws_id = ws.id
 
+    # Desmerge todas las celdas primero (evita error si hay merges manuales)
+    requests.append({
+        "unmergeCells": {
+            "range": _rango(ws_id, 0, 0, total_filas, len(COLS))
+        }
+    })
+
     # Merge titulo
     requests.append({
         "mergeCells": {
