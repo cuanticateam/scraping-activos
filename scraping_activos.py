@@ -131,10 +131,41 @@ def resolver_ip():
     return "147.93.180.97"  # fallback
 
 
-def scrape_detalles(propiedades, etiqueta=""):
-    """Visita cada propiedad con Playwright y extrae nombre, direccion y cronograma."""
+def scrape_detalles(propiedades, etiqueta="", tab=""):
+    """Scrapea solo propiedades nuevas o con cambios. Reutiliza cache para el resto."""
     ip = resolver_ip()
+    anteriores = cargar_datos_anteriores()
     resultados = {}
+    por_scrapear = []
+
+    for prop in propiedades:
+        pid = str(prop["id"])
+        base = f"{tab}:{pid}" if tab else pid
+        prev = anteriores.get(base, {})
+
+        api_valor = formatear_precio(prop.get("base_sale_price") or prop.get("commercial_appraisal"))
+        prev_valor = prev.get("valor", "")
+        cambio_api = api_valor != prev_valor
+
+        es_nuevo = not prev or prev.get("_eliminado") == "true"
+        sin_nombre = not prev.get("nombre") or prev.get("nombre") == "Sin nombre"
+
+        if es_nuevo or sin_nombre or cambio_api:
+            por_scrapear.append(prop)
+        else:
+            resultados[pid] = {
+                "nombre": prev.get("nombre",""),
+                "direccion": prev.get("direccion",""),
+                "barrio": "",
+                "estado_crono": prev.get("estado_crono",""),
+                "etapa_actual": prev.get("etapa_actual",""),
+                "plazo": prev.get("plazo","X"),
+            }
+
+    print(f"  {etiqueta}Cache: {len(resultados)} | Por scrapear: {len(por_scrapear)}")
+
+    if not por_scrapear:
+        return resultados
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True, args=[
@@ -146,8 +177,8 @@ def scrape_detalles(propiedades, etiqueta=""):
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36"
         ).new_page()
 
-        total = len(propiedades)
-        for i, prop in enumerate(propiedades, 1):
+        total = len(por_scrapear)
+        for i, prop in enumerate(por_scrapear, 1):
             pid = str(prop["id"])
             url = construir_url(prop)
             ref = (prop.get("reference") or "")[:50]
@@ -658,10 +689,10 @@ if __name__ == "__main__":
 
     # ── Scrape detalles ──
     print("\n[3/5] Visitando paginas de Medellin...")
-    det_med = scrape_detalles(props_med, "MED ")
+    det_med = scrape_detalles(props_med, "MED ", tab="med")
 
     print("\n[4/5] Visitando paginas de Antioquia...")
-    det_ant = scrape_detalles(props_ant, "ANT ")
+    det_ant = scrape_detalles(props_ant, "ANT ", tab="ant")
 
     # ── Procesar ──
     inmuebles_med = procesar_propiedades(props_med, det_med)
