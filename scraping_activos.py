@@ -585,7 +585,6 @@ def enviar_email(resumen_cambios):
                         ("Tipo", c.get("tipo_inmueble","")),
                         ("Direccion", c.get("direccion","")),
                         ("Folio Matricula", c.get("matricula","")),
-                        ("FMI", c.get("fmi","")),
                         ("Area m2", c.get("area_m2","")),
                         ("Valor", c.get("valor","")),
                         ("Estado Cronograma", c.get("estado_crono","")),
