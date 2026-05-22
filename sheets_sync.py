@@ -198,7 +198,10 @@ def _escribir_pestaña(ws, titulo, inmuebles, cambios, tab):
                 val = item.get(campo, "")
                 fila.append(str(val) if val is not None else "")
             elif campo == "link":
-                fila.append(link if link else "")
+                if link:
+                    fila.append(f'=HYPERLINK("{link}","Ver")')
+                else:
+                    fila.append("")
             elif campo == "nombre":
                 # Permitir sobreescribir "Sin nombre"
                 if prev and col_idx < len(prev) and prev[col_idx] and prev[col_idx] != "Sin nombre":
