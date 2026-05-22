@@ -40,7 +40,7 @@ CAMPOS = ["nombre","direccion","tipo",
 ANCHOS = [220,280,130,160,250,80,80,80,150,140,300]
 
 # Columnas que el script actualiza automaticamente (indice en CAMPOS)
-AUTO_CAMPOS = {"estado_crono", "etapa_actual", "plazo", "valor"}
+AUTO_CAMPOS = {"estado_crono", "etapa_actual", "plazo", "valor", "area_m2"}
 IDX_LINK = CAMPOS.index("link")
 
 
