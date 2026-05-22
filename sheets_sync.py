@@ -220,12 +220,16 @@ def _escribir_pestaña(ws, titulo, inmuebles, cambios, tab):
     requests = []
     ws_id = ws.id
 
-    # Desmerge todas las celdas primero (evita error si hay merges manuales)
-    requests.append({
-        "unmergeCells": {
-            "range": _rango(ws_id, 0, 0, total_filas, len(COLS))
-        }
-    })
+    # Desmerge todas las celdas combinadas existentes
+    try:
+        sheet_meta = ws.spreadsheet.fetch_sheet_metadata()
+        for s in sheet_meta.get("sheets", []):
+            if s["properties"]["sheetId"] == ws_id:
+                for m in s.get("merges", []):
+                    requests.append({"unmergeCells": {"range": m}})
+                break
+    except Exception:
+        pass  # si no puede leer merges, continua
 
     # Merge titulo
     requests.append({
