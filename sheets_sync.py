@@ -297,6 +297,17 @@ def _escribir_pestaña(ws, titulo, inmuebles, cambios, tab):
             }
         })
 
+    # Altura de filas de datos (delgadas)
+    if total_filas > 2:
+        requests.append({
+            "updateDimensionProperties": {
+                "range": {"sheetId": ws_id, "dimension": "ROWS",
+                          "startIndex": 2, "endIndex": total_filas},
+                "properties": {"pixelSize": 21},
+                "fields": "pixelSize"
+            }
+        })
+
     # Congelar filas
     requests.append({
         "updateSheetProperties": {
