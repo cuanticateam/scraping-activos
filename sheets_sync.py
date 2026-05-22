@@ -220,6 +220,22 @@ def _escribir_pestaña(ws, titulo, inmuebles, cambios, tab):
     if filas:
         ws.update(filas, value_input_option="USER_ENTERED")
 
+    # ── Rich text links (hover + 1 clic) ──
+    link_requests = []
+    for ri, fila in enumerate(filas):
+        if ri < 2:
+            continue
+        if IDX_LINK < len(fila) and fila[IDX_LINK] and str(fila[IDX_LINK]).startswith("http"):
+            link_requests.append({
+                "updateCells": {
+                    "rows": [{"values": [{"textFormatRuns": [{"format": {"link": {"uri": fila[IDX_LINK]}}}], "userEnteredValue": {"stringValue": "Ver"}}]}],
+                    "fields": "userEnteredValue,textFormatRuns",
+                    "range": {"sheetId": ws.id, "startRowIndex": ri, "endRowIndex": ri+1, "startColumnIndex": IDX_LINK, "endColumnIndex": IDX_LINK+1}
+                }
+            })
+    for i in range(0, len(link_requests), 100):
+        ws.spreadsheet.batch_update({"requests": link_requests[i:i+100]})
+
     total_filas = len(filas)
     try:
         if ws.row_count < total_filas:
