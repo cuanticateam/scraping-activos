@@ -198,8 +198,16 @@ def _escribir_pestaña(ws, titulo, inmuebles, cambios, tab):
                 val = item.get(campo, "")
                 fila.append(str(val) if val is not None else "")
             elif campo == "link":
-                # Link directo (clickeable en Sheets sin HYPERLINK)
-                fila.append(link if link else "")
+                if link:
+                    import urllib.parse
+                    parts = link.split("/es/", 1)
+                    if len(parts) == 2:
+                        enc = parts[0] + "/es/" + urllib.parse.quote(parts[1], safe="/")
+                    else:
+                        enc = urllib.parse.quote(link, safe="/:?=&")
+                    fila.append(f'=HYPERLINK("{enc}","Ver")')
+                else:
+                    fila.append("")
             elif campo == "nombre":
                 # Permitir sobreescribir "Sin nombre"
                 if prev and col_idx < len(prev) and prev[col_idx] and prev[col_idx] != "Sin nombre":
