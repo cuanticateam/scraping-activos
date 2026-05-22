@@ -31,13 +31,13 @@ COLOR_VENDIDO = {"red":0.6,  "green":0.0,  "blue":0.4}   # magenta oscuro
 COLOR_ELIMINADO = {"red":0.85, "green":0.85, "blue":0.85}  # gris claro
 COLOR_ELIM_HDR  = {"red":0.55, "green":0.55, "blue":0.55}  # gris oscuro
 
-COLS = ["NOMBRE","DIRECCION","TIPO","FOLIO MATRICULA",
+COLS = ["NOMBRE","DIRECCION","TIPO",
         "ESTADO CRONOGRAMA","ETAPA ACTUAL","PLAZO","LINK",
         "AREA m2","VALOR","FMI","ANOTACIONES"]
-CAMPOS = ["nombre","direccion","tipo","matricula",
+CAMPOS = ["nombre","direccion","tipo",
           "estado_crono","etapa_actual","plazo","link",
           "area_m2","valor","fmi","_anotaciones"]
-ANCHOS = [220,280,130,140,160,250,80,80,80,150,140,300]
+ANCHOS = [220,280,130,160,250,80,80,80,150,140,300]
 
 # Columnas que el script actualiza automaticamente (indice en CAMPOS)
 AUTO_CAMPOS = {"estado_crono", "etapa_actual", "plazo", "valor"}
