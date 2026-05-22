@@ -154,17 +154,31 @@ def _obtener_hoja(sh, existentes, nombre, filas_min):
 def _escribir_pestaña(ws, titulo, inmuebles, cambios, tab):
     # ── Leer datos existentes para preservar ediciones manuales ──
     existing = ws.get_all_values()
-    manual_por_link = {}  # link -> fila completa
+    # Leer formulas para extraer URLs de HYPERLINK
+    try:
+        existing_formulas = ws.get(value_render_option="FORMULA")
+    except Exception:
+        existing_formulas = existing
+    manual_por_link = {}  # link -> fila completa (values)
     if len(existing) > 2:
-        for row in existing[2:]:  # saltar titulo y encabezados
-            # Buscar la columna LINK en los encabezados existentes
+        for ri, row in enumerate(existing[2:], start=2):
             link_val = ""
-            for ci, cell in enumerate(row):
-                if cell and cell.startswith("http"):
-                    link_val = cell
-                    break
-            if not link_val and IDX_LINK < len(row):
-                link_val = row[IDX_LINK]
+            # Extraer URL de la formula HYPERLINK
+            if ri < len(existing_formulas):
+                frow = existing_formulas[ri]
+                if IDX_LINK < len(frow):
+                    cell_f = str(frow[IDX_LINK])
+                    if "HYPERLINK" in cell_f:
+                        import re
+                        m = re.search(r'HYPERLINK\("([^"]+)"', cell_f)
+                        if m:
+                            link_val = m.group(1)
+            # Fallback: buscar celda con http
+            if not link_val:
+                for ci, cell in enumerate(row):
+                    if cell and str(cell).startswith("http"):
+                        link_val = cell
+                        break
             if link_val:
                 manual_por_link[link_val] = row
 
