@@ -228,7 +228,7 @@ def _escribir_pestaña(ws, titulo, inmuebles, cambios, tab):
         if IDX_LINK < len(fila) and fila[IDX_LINK] and str(fila[IDX_LINK]).startswith("http"):
             link_requests.append({
                 "updateCells": {
-                    "rows": [{"values": [{"textFormatRuns": [{"format": {"link": {"uri": fila[IDX_LINK]}}}], "userEnteredValue": {"stringValue": "Ver"}}]}],
+                    "rows": [{"values": [{"userEnteredValue": {"stringValue": "Ver"}, "textFormatRuns": [{"startIndex": 0, "format": {"link": {"uri": fila[IDX_LINK]}, "foregroundColorStyle": {"rgbColor": {"blue": 0.8, "red": 0, "green": 0.2}}}}]}]}],
                     "fields": "userEnteredValue,textFormatRuns",
                     "range": {"sheetId": ws.id, "startRowIndex": ri, "endRowIndex": ri+1, "startColumnIndex": IDX_LINK, "endColumnIndex": IDX_LINK+1}
                 }
