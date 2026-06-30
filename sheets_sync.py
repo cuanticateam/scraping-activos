@@ -134,6 +134,13 @@ def sync_to_sheets(inmuebles_med, inmuebles_ant, cambios_med, cambios_ant,
         print(f"  Escribiendo Eliminados ({n_elim})...")
         _escribir_eliminados(ws_elim, todos_elim)
 
+    # Pestaña Con Precio (Medellin + Antioquia)
+    con_precio = [i for i in (inmuebles_med + inmuebles_ant) if i.get("valor","X") != "X"]
+    if con_precio:
+        ws_precio = _obtener_hoja(sh, hojas_existentes, "Con Precio", len(con_precio) + 5)
+        print(f"  Escribiendo Con Precio ({len(con_precio)})...")
+        _escribir_con_precio(ws_precio, con_precio)
+
     print("  Escribiendo Leyenda e Info...")
     ws_ley.clear()
     _escribir_leyenda(ws_ley)
@@ -198,7 +205,10 @@ def _escribir_pestaña(ws, titulo, inmuebles, cambios, tab):
                 val = item.get(campo, "")
                 fila.append(str(val) if val is not None else "")
             elif campo == "link":
-                fila.append(link if link else "")
+                if link:
+                    fila.append(f'=HYPERLINK("{link}";"Ver")')
+                else:
+                    fila.append("")
             elif campo == "nombre":
                 # Permitir sobreescribir "Sin nombre"
                 if prev and col_idx < len(prev) and prev[col_idx] and prev[col_idx] != "Sin nombre":
@@ -219,22 +229,6 @@ def _escribir_pestaña(ws, titulo, inmuebles, cambios, tab):
     ws.clear()
     if filas:
         ws.update(filas, value_input_option="USER_ENTERED")
-
-    # ── Rich text links (hover + 1 clic) ──
-    link_requests = []
-    for ri, fila in enumerate(filas):
-        if ri < 2:
-            continue
-        if IDX_LINK < len(fila) and fila[IDX_LINK] and str(fila[IDX_LINK]).startswith("http"):
-            link_requests.append({
-                "updateCells": {
-                    "rows": [{"values": [{"userEnteredValue": {"stringValue": "Ver"}, "textFormatRuns": [{"startIndex": 0, "format": {"link": {"uri": fila[IDX_LINK]}, "foregroundColorStyle": {"rgbColor": {"blue": 0.8, "red": 0, "green": 0.2}}}}]}]}],
-                    "fields": "userEnteredValue,textFormatRuns",
-                    "range": {"sheetId": ws.id, "startRowIndex": ri, "endRowIndex": ri+1, "startColumnIndex": IDX_LINK, "endColumnIndex": IDX_LINK+1}
-                }
-            })
-    for i in range(0, len(link_requests), 100):
-        ws.spreadsheet.batch_update({"requests": link_requests[i:i+100]})
 
     total_filas = len(filas)
     try:
@@ -293,14 +287,8 @@ def _escribir_pestaña(ws, titulo, inmuebles, cambios, tab):
                 requests.append(_formato_celdas(ws_id, fila_idx, j, fila_idx+1, j+1,
                                                  COLOR_CAMBIO, fg, False, 10))
 
-    # Wrap text en columna LINK
-    requests.append({
-        "repeatCell": {
-            "range": _rango(ws_id, 2, IDX_LINK, total_filas, IDX_LINK + 1),
-            "cell": {"userEnteredFormat": {"wrapStrategy": "WRAP"}},
-            "fields": "userEnteredFormat.wrapStrategy"
-        }
-    })
+    # Columna LINK: no wrap (es solo "Ver" ahora)
+
 
     # Anchos de columna
     for j, ancho in enumerate(ANCHOS):
@@ -362,6 +350,128 @@ def _escribir_pestaña(ws, titulo, inmuebles, cambios, tab):
             time.sleep(5)
 
 
+COLS_PRECIO = ["NOMBRE","DIRECCION","TIPO","FMI",
+               "ESTADO CRONOGRAMA","ETAPA ACTUAL","PLAZO",
+               "AREA m2","VALOR","LINK"]
+CAMPOS_PRECIO = ["nombre","direccion","tipo","fmi",
+                 "estado_crono","etapa_actual","plazo",
+                 "area_m2","valor","link"]
+ANCHOS_PRECIO = [220,280,130,140,160,250,80,80,150,80]
+
+
+def _escribir_con_precio(ws, inmuebles):
+    """Escribe la pestaña Con Precio con inmuebles que tienen valor."""
+    filas = []
+    filas.append(["INMUEBLES CON PRECIO - MEDELLIN Y ANTIOQUIA"] + [""] * (len(COLS_PRECIO) - 1))
+    filas.append(COLS_PRECIO)
+
+    for item in inmuebles:
+        fila = []
+        for campo in CAMPOS_PRECIO:
+            if campo == "link":
+                link = str(item.get("link", ""))
+                fila.append(f'=HYPERLINK("{link}";"Ver")' if link else "")
+            else:
+                val = item.get(campo, "")
+                fila.append(str(val) if val is not None else "")
+        filas.append(fila)
+
+    ws.clear()
+    if filas:
+        ws.update(filas, value_input_option="USER_ENTERED")
+
+    total_filas = len(filas)
+    try:
+        if ws.row_count < total_filas:
+            ws.resize(rows=total_filas + 2, cols=len(COLS_PRECIO))
+    except: pass
+
+    requests = []
+    ws_id = ws.id
+
+    # Desmerge
+    try:
+        sheet_meta = ws.spreadsheet.fetch_sheet_metadata()
+        for s in sheet_meta.get("sheets", []):
+            if s["properties"]["sheetId"] == ws_id:
+                for m in s.get("merges", []):
+                    requests.append({"unmergeCells": {"range": m}})
+                break
+    except: pass
+
+    # Merge titulo
+    requests.append({
+        "mergeCells": {
+            "range": _rango(ws_id, 0, 0, 1, len(COLS_PRECIO)),
+            "mergeType": "MERGE_ALL"
+        }
+    })
+    requests.append(_formato_celdas(ws_id, 0, 0, 1, len(COLS_PRECIO),
+                                     COLOR_HEADER, COLOR_BLANCO, True, 14))
+    requests.append(_formato_celdas(ws_id, 1, 0, 2, len(COLS_PRECIO),
+                                     COLOR_HDR2, COLOR_BLANCO, True, 10))
+
+    # Filas de datos
+    for i, item in enumerate(inmuebles):
+        fila_idx = i + 2
+        bg = color_fila(item.get("estado_crono",""), item.get("estado_api",""))
+        estado_api = (item.get("estado_api","") or "").upper()
+        fg = COLOR_BLANCO if "VENDIDO" in estado_api else None
+        requests.append(_formato_celdas(ws_id, fila_idx, 0, fila_idx+1, len(COLS_PRECIO),
+                                         bg, fg, False, 10))
+
+    # Anchos
+    for j, ancho in enumerate(ANCHOS_PRECIO):
+        requests.append({
+            "updateDimensionProperties": {
+                "range": {"sheetId": ws_id, "dimension": "COLUMNS",
+                          "startIndex": j, "endIndex": j+1},
+                "properties": {"pixelSize": ancho},
+                "fields": "pixelSize"
+            }
+        })
+
+    # Altura filas
+    if total_filas > 2:
+        requests.append({
+            "updateDimensionProperties": {
+                "range": {"sheetId": ws_id, "dimension": "ROWS",
+                          "startIndex": 2, "endIndex": total_filas},
+                "properties": {"pixelSize": 21},
+                "fields": "pixelSize"
+            }
+        })
+
+    # Congelar + filtros
+    requests.append({
+        "updateSheetProperties": {
+            "properties": {"sheetId": ws_id, "gridProperties": {"frozenRowCount": 2}},
+            "fields": "gridProperties.frozenRowCount"
+        }
+    })
+    requests.append({"clearBasicFilter": {"sheetId": ws_id}})
+    requests.append({
+        "setBasicFilter": {
+            "filter": {"range": _rango(ws_id, 1, 0, total_filas, len(COLS_PRECIO))}
+        }
+    })
+
+    if requests:
+        for chunk_start in range(0, len(requests), 100):
+            chunk = requests[chunk_start:chunk_start+100]
+            for intento in range(3):
+                try:
+                    ws.spreadsheet.batch_update({"requests": chunk})
+                    break
+                except Exception as e:
+                    if "429" in str(e) and intento < 2:
+                        print(f"    Rate limit (precio), esperando {30*(intento+1)}s...")
+                        time.sleep(30 * (intento + 1))
+                    else:
+                        raise
+            time.sleep(5)
+
+
 COLS_ELIM = ["ORIGEN","NOMBRE","DIRECCION","TIPO","FOLIO MATRICULA",
              "VALOR","FECHA ELIMINADO","LINK","ANOTACIONES"]
 CAMPOS_ELIM = ["_origen","nombre","direccion","tipo","matricula",
@@ -401,7 +511,10 @@ def _escribir_eliminados(ws, todos_elim):
                 else:
                     fila.append("")
             elif campo == "link":
-                fila.append(link if link else "")
+                if link:
+                    fila.append(f'=HYPERLINK("{link}";"Ver")')
+                else:
+                    fila.append("")
             else:
                 fila.append(str(elim.get(campo, "")))
         filas.append(fila)
