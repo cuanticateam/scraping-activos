@@ -15,6 +15,7 @@ SCOPES = [
     "https://www.googleapis.com/auth/drive",
 ]
 SPREADSHEET_ID = "1a1ar-47FUtIMlw7uBSCKREh_ckIljk515qXLRB8-5C0"
+SPREADSHEET_PRECIO_ID = "1gaFZq2E5SeGvuHo0B84JStM-AC4aPmsaqE3-2dUpkGo"
 
 # Buscar credenciales: archivo local o variable de entorno (GitHub)
 CREDS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
@@ -134,12 +135,21 @@ def sync_to_sheets(inmuebles_med, inmuebles_ant, cambios_med, cambios_ant,
         print(f"  Escribiendo Eliminados ({n_elim})...")
         _escribir_eliminados(ws_elim, todos_elim)
 
-    # Pestaña Con Precio (Medellin + Antioquia)
+    # Sheet separado: Inmuebles con Precio
     con_precio = [i for i in (inmuebles_med + inmuebles_ant) if i.get("valor","X") != "X"]
     if con_precio:
-        ws_precio = _obtener_hoja(sh, hojas_existentes, "Con Precio", len(con_precio) + 5)
-        print(f"  Escribiendo Con Precio ({len(con_precio)})...")
-        _escribir_con_precio(ws_precio, con_precio)
+        try:
+            sh_precio = client.open_by_key(SPREADSHEET_PRECIO_ID)
+            hojas_precio = {w.title: w for w in sh_precio.worksheets()}
+            ws_precio = _obtener_hoja(sh_precio, hojas_precio, "Con Precio", len(con_precio) + 5)
+            # Borrar Hoja 1 default si existe
+            if "Hoja 1" in hojas_precio and "Con Precio" in hojas_precio:
+                try: sh_precio.del_worksheet(hojas_precio["Hoja 1"])
+                except: pass
+            print(f"  Escribiendo Con Precio ({len(con_precio)}) en sheet separado...")
+            _escribir_con_precio(ws_precio, con_precio)
+        except Exception as e:
+            print(f"  Error escribiendo Con Precio: {e}")
 
     print("  Escribiendo Leyenda e Info...")
     ws_ley.clear()
