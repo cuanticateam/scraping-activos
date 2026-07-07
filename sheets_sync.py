@@ -362,25 +362,63 @@ def _escribir_pestaña(ws, titulo, inmuebles, cambios, tab):
 
 COLS_PRECIO = ["NOMBRE","DIRECCION","TIPO","FMI",
                "ESTADO CRONOGRAMA","ETAPA ACTUAL","PLAZO",
-               "AREA m2","VALOR","LINK"]
+               "AREA m2","VALOR","LINK","VALOR ESTIMADO MERCADO"]
 CAMPOS_PRECIO = ["nombre","direccion","tipo","fmi",
                  "estado_crono","etapa_actual","plazo",
-                 "area_m2","valor","link"]
-ANCHOS_PRECIO = [220,280,130,140,160,250,80,80,150,80]
+                 "area_m2","valor","link","_valor_mercado"]
+ANCHOS_PRECIO = [220,280,130,140,160,250,80,80,150,80,230]
+AUTO_CAMPOS_PRECIO = {"estado_crono", "etapa_actual", "plazo", "valor", "area_m2"}
+IDX_LINK_PRECIO = CAMPOS_PRECIO.index("link")
 
 
 def _escribir_con_precio(ws, inmuebles):
-    """Escribe la pestaña Con Precio con inmuebles que tienen valor."""
+    """Escribe la pestaña Con Precio con inmuebles que tienen valor.
+    Preserva columna VALOR ESTIMADO MERCADO (manual)."""
+    # Leer datos existentes para preservar valor de mercado
+    existing = ws.get_all_values()
+    try:
+        existing_formulas = ws.get(value_render_option="FORMULA")
+    except Exception:
+        existing_formulas = existing
+    manual_por_fmi = {}
+    if len(existing) > 2:
+        idx_fmi_p = CAMPOS_PRECIO.index("fmi")
+        idx_vm = CAMPOS_PRECIO.index("_valor_mercado")
+        for ri, row in enumerate(existing[2:], start=2):
+            fmi_val = row[idx_fmi_p] if idx_fmi_p < len(row) else ""
+            if fmi_val:
+                manual_por_fmi[fmi_val] = row
+
     filas = []
     filas.append(["INMUEBLES CON PRECIO - MEDELLIN Y ANTIOQUIA"] + [""] * (len(COLS_PRECIO) - 1))
     filas.append(COLS_PRECIO)
 
+    idx_vm = CAMPOS_PRECIO.index("_valor_mercado")
     for item in inmuebles:
         fila = []
-        for campo in CAMPOS_PRECIO:
+        fmi = str(item.get("fmi", ""))
+        prev = manual_por_fmi.get(fmi)
+        for col_idx, campo in enumerate(CAMPOS_PRECIO):
             if campo == "link":
                 link = str(item.get("link", ""))
                 fila.append(f'=HYPERLINK("{link}";"Ver")' if link else "")
+            elif campo == "_valor_mercado":
+                # Preservar valor de mercado manual
+                if prev and col_idx < len(prev) and prev[col_idx]:
+                    fila.append(prev[col_idx])
+                else:
+                    fila.append("")
+            elif campo in AUTO_CAMPOS_PRECIO:
+                val = item.get(campo, "")
+                fila.append(str(val) if val is not None else "")
+            elif campo == "nombre":
+                if prev and col_idx < len(prev) and prev[col_idx] and prev[col_idx] != "Sin nombre":
+                    fila.append(prev[col_idx])
+                else:
+                    val = item.get(campo, "")
+                    fila.append(str(val) if val is not None else "")
+            elif prev and col_idx < len(prev) and prev[col_idx]:
+                fila.append(prev[col_idx])
             else:
                 val = item.get(campo, "")
                 fila.append(str(val) if val is not None else "")
