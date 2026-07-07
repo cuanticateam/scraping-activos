@@ -86,6 +86,9 @@ def construir_url(p):
     itype = (p.get("item_type") or "").upper()
     pid = p["id"]
     ref = (p.get("reference") or "").lower()
+    # Normalizar acentos y ñ antes de limpiar
+    for a, b in [("á","a"),("é","e"),("í","i"),("ó","o"),("ú","u"),("ñ","n")]:
+        ref = ref.replace(a, b)
     slug = re.sub(r"[^a-z0-9\-]", "", ref.replace(" - ","-").replace(" ","-"))
     if itype == "UNIDAD_INMOBILIARIA":
         return f"{SITE_BASE}/es/unidad-inmobiliaria/{pid}/{slug}"
@@ -141,6 +144,7 @@ def scrape_detalles(propiedades, etiqueta="", tab="", forzar_todo=False):
                     "estado_crono": prev.get("estado_crono",""),
                     "etapa_actual": prev.get("etapa_actual",""),
                     "plazo": prev.get("plazo","X"),
+                    "precio_web": prev.get("valor",""),
                 }
 
     print(f"  {etiqueta}Cache: {len(resultados)} | Por scrapear: {len(por_scrapear)}")
@@ -168,12 +172,14 @@ def scrape_detalles(propiedades, etiqueta="", tab="", forzar_todo=False):
             except Exception:
                 lineas = []
 
-            direccion, barrio = "", ""
+            direccion, barrio, precio_web = "", "", ""
             for l in lineas:
                 if l.startswith("Direcci"):
                     direccion = l.split(":", 1)[-1].strip()
                 if l.startswith("Barrio:"):
                     barrio = l.split(":", 1)[-1].strip()
+                if l.startswith("$") and "." in l:
+                    precio_web = l.strip()
 
             nombre = extraer_nombre_edificio(lineas, barrio)
             estado_crono, etapa_actual, plazo = extraer_cronograma(lineas)
@@ -181,6 +187,7 @@ def scrape_detalles(propiedades, etiqueta="", tab="", forzar_todo=False):
             resultados[pid] = {
                 "nombre": nombre, "direccion": direccion, "barrio": barrio,
                 "estado_crono": estado_crono, "etapa_actual": etapa_actual, "plazo": plazo,
+                "precio_web": precio_web,
             }
 
         browser.close()
@@ -383,7 +390,7 @@ def procesar(props_api, detalles):
             "tipo":         TIPOS.get(p.get("property_type_id"), ""),
             "matricula":    p.get("matricula_number", ""),
             "area_m2":      p.get("built_area") or p.get("lot_area") or "",
-            "valor":        formatear_precio(p.get("base_sale_price") or p.get("commercial_appraisal")),
+            "valor":        det.get("precio_web") or formatear_precio(p.get("base_sale_price") or p.get("commercial_appraisal")),
             "estado_crono": det.get("estado_crono",""),
             "etapa_actual": etapa,
             "plazo":        det.get("plazo","X"),
