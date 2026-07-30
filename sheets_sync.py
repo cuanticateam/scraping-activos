@@ -86,7 +86,18 @@ def sync_to_sheets(inmuebles_med, inmuebles_ant, cambios_med, cambios_ant,
     """
     print("Conectando con Google Sheets...")
     client = get_client()
-    sh = client.open_by_key(SPREADSHEET_ID)
+    # Retry para errores temporales de Google (503, 429, etc.)
+    for intento in range(3):
+        try:
+            sh = client.open_by_key(SPREADSHEET_ID)
+            break
+        except Exception as e:
+            if intento < 2 and ("503" in str(e) or "429" in str(e) or "unavailable" in str(e).lower()):
+                espera = 30 * (intento + 1)
+                print(f"  Google Sheets no disponible, reintentando en {espera}s... (intento {intento+1}/3)")
+                time.sleep(espera)
+            else:
+                raise
 
     hojas_existentes = {w.title: w for w in sh.worksheets()}
 
