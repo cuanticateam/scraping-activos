@@ -373,11 +373,13 @@ def _escribir_pestaña(ws, titulo, inmuebles, cambios, tab):
 
 COLS_PRECIO = ["NOMBRE","DIRECCION","TIPO","FMI",
                "ESTADO CRONOGRAMA","ETAPA ACTUAL","PLAZO",
-               "AREA m2","VALOR","LINK","VALOR ESTIMADO MERCADO"]
+               "AREA m2","VALOR","LINK","VALOR ESTIMADO MERCADO",
+               "PRECIO CUÁNTICA"]
 CAMPOS_PRECIO = ["nombre","direccion","tipo","fmi",
                  "estado_crono","etapa_actual","plazo",
-                 "area_m2","valor","link","_valor_mercado"]
-ANCHOS_PRECIO = [220,280,130,140,160,250,80,80,150,80,230]
+                 "area_m2","valor","link","_valor_mercado",
+                 "_precio_cuantica"]
+ANCHOS_PRECIO = [220,280,130,140,160,250,80,80,150,80,230,180]
 AUTO_CAMPOS_PRECIO = {"estado_crono", "etapa_actual", "plazo", "valor", "area_m2"}
 IDX_LINK_PRECIO = CAMPOS_PRECIO.index("link")
 
@@ -413,8 +415,8 @@ def _escribir_con_precio(ws, inmuebles):
             if campo == "link":
                 link = str(item.get("link", ""))
                 fila.append(f'=HYPERLINK("{link}";"Ver")' if link else "")
-            elif campo == "_valor_mercado":
-                # Preservar valor de mercado manual
+            elif campo in ("_valor_mercado", "_precio_cuantica"):
+                # Preservar columnas manuales
                 if prev and col_idx < len(prev) and prev[col_idx]:
                     fila.append(prev[col_idx])
                 else:
