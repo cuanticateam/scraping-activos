@@ -727,4 +727,86 @@ if __name__ == "__main__":
     if todos_cambios:
         enviar_email(todos_cambios)
 
+    # ── Alerta municipios vigilados ──────────────────────────────────────────
+    VIGILAR = {
+        17662: "Samaná, Caldas",
+    }
+    vigilar_file = os.path.join(SCRIPT_DIR, "vigilar_ids.json")
+    ids_previos = {}
+    if os.path.exists(vigilar_file):
+        with open(vigilar_file, "r", encoding="utf-8") as f:
+            ids_previos = json.load(f)
+
+    try:
+        todas_api = obtener_propiedades({})
+        for city_id, nombre_mun in VIGILAR.items():
+            props_mun = [p for p in todas_api if p.get("city_id") == city_id]
+            prev_ids = set(ids_previos.get(str(city_id), []))
+            curr_ids = {p["id"] for p in props_mun}
+            nuevos_ids = curr_ids - prev_ids
+
+            if nuevos_ids:
+                print(f"\n  *** ALERTA: {len(nuevos_ids)} inmueble(s) nuevo(s) en {nombre_mun} ***")
+                nuevos_props = [p for p in props_mun if p["id"] in nuevos_ids]
+                # Enviar email alerta
+                fecha = datetime.now(COL_TZ).strftime("%d/%m/%Y %H:%M")
+                html_v = f"""
+                <div style="font-family:Arial,sans-serif;max-width:700px;margin:0 auto;">
+                <h2 style="color:#e74c3c;">🚨 Nuevo(s) inmueble(s) en {nombre_mun}</h2>
+                <p style="color:#666;">{fecha}</p>
+                <table style="border-collapse:collapse;width:100%;font-size:13px;">
+                <tr style="background:#1F3864;color:white;">
+                  <th style="padding:8px;border:1px solid #ccc;">Tipo</th>
+                  <th style="padding:8px;border:1px solid #ccc;">FMI</th>
+                  <th style="padding:8px;border:1px solid #ccc;">Area</th>
+                  <th style="padding:8px;border:1px solid #ccc;">Precio</th>
+                  <th style="padding:8px;border:1px solid #ccc;">Link</th>
+                </tr>
+                """
+                for p in nuevos_props:
+                    tipo = TIPOS.get(p.get("property_type_id"), "")
+                    fmi = p.get("matricula_number", "")
+                    area = p.get("lot_area") or p.get("built_area") or ""
+                    precio = p.get("base_sale_price") or p.get("commercial_appraisal") or ""
+                    if precio:
+                        try: precio = f"$ {int(float(precio)):,}".replace(",",".")
+                        except: pass
+                    pid = p["id"]
+                    ref = (p.get("reference") or "").lower().replace(" ","-").replace(",","")
+                    link = f"{SITE_BASE}/es/inmueble/{pid}"
+                    html_v += f"""<tr>
+                      <td style="padding:8px;border:1px solid #ddd;">{tipo}</td>
+                      <td style="padding:8px;border:1px solid #ddd;">{fmi}</td>
+                      <td style="padding:8px;border:1px solid #ddd;">{area}</td>
+                      <td style="padding:8px;border:1px solid #ddd;">{precio}</td>
+                      <td style="padding:8px;border:1px solid #ddd;"><a href="{link}">Ver</a></td>
+                    </tr>"""
+                    print(f"    {tipo} | {fmi} | {link}")
+                html_v += "</table></div>"
+
+                if EMAIL_REMITENTE and EMAIL_CONTRASENA:
+                    try:
+                        msg = MIMEMultipart()
+                        msg["From"] = EMAIL_REMITENTE
+                        msg["To"] = EMAIL_DESTINATARIO
+                        msg["Subject"] = f"ALERTA: Nuevo inmueble en {nombre_mun}"
+                        msg.attach(MIMEText(html_v, "html"))
+                        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as s:
+                            s.login(EMAIL_REMITENTE, EMAIL_CONTRASENA)
+                            s.send_message(msg)
+                        print(f"    Email alerta enviado")
+                    except Exception as e:
+                        print(f"    Error email alerta: {e}")
+            elif props_mun:
+                print(f"\n  {nombre_mun}: {len(props_mun)} inmueble(s), sin nuevos")
+            else:
+                print(f"\n  {nombre_mun}: sin inmuebles")
+
+            ids_previos[str(city_id)] = list(curr_ids)
+
+        with open(vigilar_file, "w", encoding="utf-8") as f:
+            json.dump(ids_previos, f)
+    except Exception as e:
+        print(f"Error vigilancia municipios: {e}")
+
     print(f"\nListo: {len(med)} Medellin + {len(ant)} Antioquia")
