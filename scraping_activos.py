@@ -763,4 +763,94 @@ if __name__ == "__main__":
     if todos_cambios:
         enviar_email(todos_cambios)
 
+    # ── Alerta inmuebles vigilados (cambio de estado/subasta) ──────────────
+    VIGILAR_INMUEBLES = {
+        "med:138": {"nombre": "Rodeo Verde - Apto y Garaje", "link": "https://activosporcolombia.com/es/unidad-inmobiliaria/138/apartamento-y-garaje-en-venta-medellin-antioquia"},
+        "med:169": {"nombre": "Twins - Garajes", "link": "https://activosporcolombia.com/es/unidad-inmobiliaria/169/garaje-en-gestion-medellin-antioquia"},
+        "med:90":  {"nombre": "Loma Bernal - Apto con Garaje", "link": "https://activosporcolombia.com/es/unidad-inmobiliaria/90/apartamento-con-garaje-y-deposito-en-venta-medellin-antioquia"},
+    }
+    vigilar_estado_file = os.path.join(CARPETA_SCRIPT, "vigilar_estados.json")
+    estados_prev = {}
+    if os.path.exists(vigilar_estado_file):
+        with open(vigilar_estado_file, "r", encoding="utf-8") as f:
+            estados_prev = json.load(f)
+
+    alertas_inmuebles = []
+    for key, info in VIGILAR_INMUEBLES.items():
+        actual = anteriores.get(key, {})
+        etapa_actual = actual.get("etapa_actual", "")
+        estado_actual = actual.get("estado_crono", "")
+        valor_actual = actual.get("valor", "")
+        prev = estados_prev.get(key, {})
+        etapa_prev = prev.get("etapa", "")
+        estado_prev = prev.get("estado", "")
+
+        cambio = False
+        detalles = []
+        if etapa_actual != etapa_prev and etapa_prev:
+            detalles.append(f"Etapa: {etapa_prev} → {etapa_actual}")
+            cambio = True
+        if estado_actual != estado_prev and estado_prev:
+            detalles.append(f"Estado: {estado_prev} → {estado_actual}")
+            cambio = True
+
+        estados_prev[key] = {"etapa": etapa_actual, "estado": estado_actual}
+
+        if cambio:
+            alertas_inmuebles.append({
+                "nombre": info["nombre"],
+                "link": info["link"],
+                "detalles": " | ".join(detalles),
+                "etapa": etapa_actual,
+                "valor": valor_actual,
+            })
+
+    with open(vigilar_estado_file, "w", encoding="utf-8") as f:
+        json.dump(estados_prev, f, ensure_ascii=False)
+
+    if alertas_inmuebles:
+        print(f"\n  *** ALERTA: {len(alertas_inmuebles)} inmueble(s) vigilado(s) cambiaron ***")
+        from datetime import datetime
+        import zoneinfo
+        COL_TZ = zoneinfo.ZoneInfo("America/Bogota")
+        fecha = datetime.now(COL_TZ).strftime("%d/%m/%Y %H:%M")
+        html_a = f"""
+        <div style="font-family:Arial,sans-serif;max-width:700px;margin:0 auto;">
+        <h2 style="color:#e74c3c;">⚡ Alerta Inmuebles Vigilados</h2>
+        <p style="color:#666;">{fecha}</p>
+        <table style="border-collapse:collapse;width:100%;font-size:13px;">
+        <tr style="background:#1F3864;color:white;">
+          <th style="padding:8px;border:1px solid #ccc;">Inmueble</th>
+          <th style="padding:8px;border:1px solid #ccc;">Cambio</th>
+          <th style="padding:8px;border:1px solid #ccc;">Estado Actual</th>
+          <th style="padding:8px;border:1px solid #ccc;">Valor</th>
+          <th style="padding:8px;border:1px solid #ccc;">Link</th>
+        </tr>
+        """
+        for a in alertas_inmuebles:
+            html_a += f"""<tr>
+              <td style="padding:8px;border:1px solid #ddd;font-weight:bold;">{a['nombre']}</td>
+              <td style="padding:8px;border:1px solid #ddd;">{a['detalles']}</td>
+              <td style="padding:8px;border:1px solid #ddd;">{a['etapa']}</td>
+              <td style="padding:8px;border:1px solid #ddd;">{a['valor']}</td>
+              <td style="padding:8px;border:1px solid #ddd;"><a href="{a['link']}">Ver</a></td>
+            </tr>"""
+            print(f"    {a['nombre']}: {a['detalles']}")
+        html_a += "</table></div>"
+
+        try:
+            msg = MIMEMultipart()
+            msg["From"] = EMAIL_REMITENTE
+            msg["To"] = EMAIL_DESTINATARIO
+            msg["Subject"] = "⚡ ALERTA: Cambio en inmueble vigilado"
+            msg.attach(MIMEText(html_a, "html"))
+            with smtplib.SMTP_SSL("smtp.gmail.com", 465) as s:
+                s.login(EMAIL_REMITENTE, EMAIL_CONTRASENA)
+                s.send_message(msg)
+            print("    Email alerta inmuebles enviado")
+        except Exception as e:
+            print(f"    Error email alerta inmuebles: {e}")
+    else:
+        print("\n  Inmuebles vigilados: sin cambios de estado")
+
     print(f"\nListo! {len(inmuebles_med)} Medellin + {len(inmuebles_ant)} Antioquia")
