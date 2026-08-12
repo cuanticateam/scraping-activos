@@ -451,10 +451,28 @@ def detectar_cambios(inmuebles_nuevos, pestaña):
         anteriores[clave_base] = datos_item
 
     # Detectar inmuebles ELIMINADOS (marcar, no borrar)
+    # Verificar si la pagina web sigue activa antes de marcar como eliminado
     for clave_vieja in list(anteriores.keys()):
         if clave_vieja.startswith(f"{pestaña}:") and clave_vieja not in ids_actuales:
             datos_viejos = anteriores[clave_vieja]
             if datos_viejos.get("_eliminado") != "true":
+                # Verificar si la pagina del inmueble sigue activa
+                link_viejo = datos_viejos.get("link", "")
+                pagina_activa = False
+                if link_viejo:
+                    try:
+                        req = urllib.request.Request(link_viejo, headers={"User-Agent": "Mozilla/5.0"})
+                        with urllib.request.urlopen(req, timeout=10) as r:
+                            contenido = r.read().decode("utf-8", errors="ignore")
+                            if "not-found" not in contenido and "404" not in contenido[:500]:
+                                pagina_activa = True
+                    except:
+                        pass
+                if pagina_activa:
+                    # La pagina sigue activa pero la API no lo lista
+                    # No marcar como eliminado, solo registrar advertencia
+                    print(f"  AVISO: {datos_viejos.get('nombre','')} ({clave_vieja}) no esta en API pero su pagina sigue activa - NO se elimina")
+                    continue
                 # Recien eliminado — notificar
                 resumen.append({
                     "tipo": "ELIMINADO", "tab": pestaña.upper(),
