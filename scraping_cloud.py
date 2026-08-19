@@ -788,8 +788,7 @@ if __name__ == "__main__":
                         try: precio = f"$ {int(float(precio)):,}".replace(",",".")
                         except: pass
                     pid = p["id"]
-                    ref = (p.get("reference") or "").lower().replace(" ","-").replace(",","")
-                    link = f"{SITE_BASE}/es/inmueble/{pid}"
+                    link = construir_url(p)
                     html_v += f"""<tr>
                       <td style="padding:8px;border:1px solid #ddd;">{tipo}</td>
                       <td style="padding:8px;border:1px solid #ddd;">{fmi}</td>
