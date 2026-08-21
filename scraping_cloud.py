@@ -830,6 +830,122 @@ if __name__ == "__main__":
         "med:169": {"nombre": "Twins - Garajes", "link": "https://activosporcolombia.com/es/unidad-inmobiliaria/169/garaje-en-gestion-medellin-antioquia"},
         "med:90":  {"nombre": "Loma Bernal - Apto con Garaje", "link": "https://activosporcolombia.com/es/unidad-inmobiliaria/90/apartamento-con-garaje-y-deposito-en-venta-medellin-antioquia"},
     }
+
+    # ── Vigilar FMIs que aun no estan en activosporcolombia ──────────────
+    VIGILAR_FMI = {
+        "001-1121210": "Torre Bariloche - Apto CL33A 70A 21",
+        "001-1121291": "Torre Bariloche - Garaje CL33A 70A 27",
+        "001-1020231": "Ed Provenza - Apto CL33A 78A 72",
+        "001-1020276": "Ed Provenza - Garaje CL33A 78A 72",
+        "001-1020261": "Ed Provenza - Deposito CL33A 78A 72",
+    }
+    vigilar_fmi_file = os.path.join(SCRIPT_DIR, "vigilar_fmis.json")
+    fmis_prev = {}
+    if os.path.exists(vigilar_fmi_file):
+        with open(vigilar_fmi_file, "r", encoding="utf-8") as f:
+            fmis_prev = json.load(f)
+
+    alertas_fmi = []
+    # Check in current scraped data
+    for fmi, nombre_fmi in VIGILAR_FMI.items():
+        found = None
+        for k, v in anteriores.items():
+            actual_fmi = v.get("fmi", "") or v.get("matricula", "")
+            if actual_fmi == fmi and not v.get("_eliminado"):
+                found = v
+                break
+
+        prev_state = fmis_prev.get(fmi, {})
+        curr_state = {}
+        if found:
+            curr_state = {
+                "valor": found.get("valor", ""),
+                "estado_crono": found.get("estado_crono", ""),
+                "etapa_actual": found.get("etapa_actual", ""),
+                "link": found.get("link", ""),
+            }
+        else:
+            # Search in API
+            for p in todas_api:
+                if p.get("matricula_number") == fmi:
+                    precio = p.get("base_sale_price") or p.get("commercial_appraisal") or ""
+                    state = p.get("state", {})
+                    estado = state.get("name", "") if isinstance(state, dict) else ""
+                    link_api = construir_url(p)
+                    curr_state = {"valor": str(precio), "estado_crono": estado, "etapa_actual": "", "link": link_api}
+                    break
+
+        if not curr_state and not prev_state:
+            fmis_prev[fmi] = {}
+            continue
+
+        cambios_fmi = []
+        for campo in ["valor", "estado_crono", "etapa_actual", "link"]:
+            antes = prev_state.get(campo, "")
+            ahora = curr_state.get(campo, "")
+            if ahora and ahora != antes:
+                label = {"valor": "Precio", "estado_crono": "Estado", "etapa_actual": "Etapa", "link": "Publicado"}.get(campo, campo)
+                if campo == "link" and not antes:
+                    cambios_fmi.append(f"PUBLICADO en activosporcolombia!")
+                else:
+                    cambios_fmi.append(f"{label}: {antes or 'N/A'} -> {ahora}")
+
+        fmis_prev[fmi] = curr_state
+
+        if cambios_fmi:
+            alertas_fmi.append({
+                "nombre": nombre_fmi,
+                "fmi": fmi,
+                "detalles": " | ".join(cambios_fmi),
+                "link": curr_state.get("link", ""),
+                "valor": curr_state.get("valor", ""),
+            })
+
+    with open(vigilar_fmi_file, "w", encoding="utf-8") as f:
+        json.dump(fmis_prev, f, ensure_ascii=False)
+
+    if alertas_fmi:
+        print(f"\n  *** ALERTA FMI: {len(alertas_fmi)} inmueble(s) vigilado(s) por FMI cambiaron ***")
+        fecha = datetime.now(COL_TZ).strftime("%d/%m/%Y %H:%M")
+        html_fmi = f"""
+        <div style="font-family:Arial,sans-serif;max-width:700px;margin:0 auto;">
+        <h2 style="color:#e74c3c;">🏠 Alerta Inmuebles por FMI</h2>
+        <p style="color:#666;">{fecha}</p>
+        <table style="border-collapse:collapse;width:100%;font-size:13px;">
+        <tr style="background:#1F3864;color:white;">
+          <th style="padding:8px;border:1px solid #ccc;">Inmueble</th>
+          <th style="padding:8px;border:1px solid #ccc;">FMI</th>
+          <th style="padding:8px;border:1px solid #ccc;">Cambio</th>
+          <th style="padding:8px;border:1px solid #ccc;">Valor</th>
+          <th style="padding:8px;border:1px solid #ccc;">Link</th>
+        </tr>
+        """
+        for a in alertas_fmi:
+            link_html = f'<a href="{a["link"]}">Ver</a>' if a["link"] else "No publicado"
+            html_fmi += f"""<tr>
+              <td style="padding:8px;border:1px solid #ddd;font-weight:bold;">{a['nombre']}</td>
+              <td style="padding:8px;border:1px solid #ddd;">{a['fmi']}</td>
+              <td style="padding:8px;border:1px solid #ddd;">{a['detalles']}</td>
+              <td style="padding:8px;border:1px solid #ddd;">{a['valor']}</td>
+              <td style="padding:8px;border:1px solid #ddd;">{link_html}</td>
+            </tr>"""
+        html_fmi += "</table></div>"
+
+        if EMAIL_REMITENTE and EMAIL_CONTRASENA:
+            try:
+                msg = MIMEMultipart()
+                msg["From"] = EMAIL_REMITENTE
+                msg["To"] = EMAIL_DESTINATARIO
+                msg["Subject"] = "ALERTA: Cambio en inmuebles vigilados (FMI)"
+                msg.attach(MIMEText(html_fmi, "html"))
+                with smtplib.SMTP_SSL("smtp.gmail.com", 465) as s:
+                    s.login(EMAIL_REMITENTE, EMAIL_CONTRASENA)
+                    s.send_message(msg)
+                print(f"    Email alerta FMI enviado")
+            except Exception as e:
+                print(f"    Error email alerta FMI: {e}")
+    else:
+        print(f"\n  Inmuebles vigilados por FMI: sin cambios")
     vigilar_estado_file = os.path.join(SCRIPT_DIR, "vigilar_estados.json")
     estados_prev = {}
     if os.path.exists(vigilar_estado_file):
